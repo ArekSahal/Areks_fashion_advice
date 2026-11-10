@@ -27,14 +27,14 @@ jobs:
     outputs:
       app: ${{ steps.check.outputs.app }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check that the app exists yet
         id: check
         run: |
           if [ -f package.json ]; then echo "app=yes" >> "$GITHUB_OUTPUT"; else echo "app=no" >> "$GITHUB_OUTPUT"; echo "No app yet, skipping."; fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.check.outputs.app == 'yes'
         with:
           node-version: 22

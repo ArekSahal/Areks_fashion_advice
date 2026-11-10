@@ -11,6 +11,7 @@ on:
     paths:
       - package.json
       - .github/workflows/bootstrap-deps.yml
+      - scripts/resolve-deps.mjs
 
 permissions:
   contents: write
@@ -24,29 +25,31 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     env:
-      EXPO_DEPS: >-
+      DEPS: >-
         expo-router expo-linking expo-constants expo-status-bar
         react react-dom react-native react-native-web @expo/metro-runtime
         react-native-safe-area-context react-native-screens
         @react-native-async-storage/async-storage react-native-url-polyfill
-      NPM_DEPS: '@supabase/supabase-js'
-      EXPO_DEV_DEPS: 'typescript @types/react eslint eslint-config-expo'
-      NPM_DEV_DEPS: 'vitest'
+        @supabase/supabase-js
+      DEV_DEPS: 'typescript @types/react eslint eslint-config-expo vitest'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
       - name: Resolve versions
         run: |
+          # 1. Install only expo (no auto-installed peers) to read the SDK's version table.
+          npm install --no-audit --no-fund --legacy-peer-deps --no-save expo@"$(node -p "require('./package.json').dependencies.expo")"
+          # 2. Pin every package to the SDK version (others to latest), then install once.
+          node scripts/resolve-deps.mjs "$DEPS" "$DEV_DEPS"
+          rm -rf node_modules package-lock.json
           npm install --no-audit --no-fund
-          npx expo install $EXPO_DEPS
-          npx expo install $EXPO_DEV_DEPS -- --save-dev
-          npm install --no-audit --no-fund $NPM_DEPS
-          npm install --no-audit --no-fund --save-dev $NPM_DEV_DEPS
-          npx expo install --fix
+          node scripts/resolve-deps.mjs --pin
+          npm install --no-audit --no-fund
+          npx expo install --check
 
       - name: Smoke check
         env:
