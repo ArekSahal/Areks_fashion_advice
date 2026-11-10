@@ -21,10 +21,17 @@ const PAIRS = [
   ['text', 'surfaceSunken'],
   ['textMuted', 'background'],
   ['textMuted', 'surface'],
+  ['textMuted', 'surfaceSunken'],
   ['accent', 'background'],
   ['onAccent', 'accent'],
   ['danger', 'background'],
   ['success', 'background'],
+] as const;
+
+// Non-text UI that must be visible (outlines of inputs and secondary buttons): WCAG 1.4.11 = 3:1.
+const OUTLINES = [
+  ['borderStrong', 'background'],
+  ['borderStrong', 'surface'],
 ] as const;
 
 describe('colour tokens', () => {
@@ -32,6 +39,11 @@ describe('colour tokens', () => {
     for (const [fg, bg] of PAIRS) {
       it(`${scheme}: ${fg} on ${bg} meets AA`, () => {
         expect(contrast(colours[scheme][fg], colours[scheme][bg])).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+    for (const [fg, bg] of OUTLINES) {
+      it(`${scheme}: ${fg} on ${bg} meets 3:1`, () => {
+        expect(contrast(colours[scheme][fg], colours[scheme][bg])).toBeGreaterThanOrEqual(3);
       });
     }
   }

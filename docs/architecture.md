@@ -37,14 +37,15 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 | `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, embedding vector, created_at | owner only; marketplace reads go through `listings` |
 | `outfits` | id, owner_id, worn_on date, photo_path, notes | owner only |
 | `outfit_items` | outfit_id, item_id | owner only (via outfit); wear counts and "last worn" come from here (view `item_wear_stats`) |
-| `listings` | id, item_id, seller_id, price, currency, condition, size, city, status (active/reserved/sold/withdrawn) | public read when active (via a view with only safe columns); seller writes |
+| `listings` | id, item_id, seller_id, price, currency, condition, size, city, status (active/reserved/sold/withdrawn) | **signed-in users** read active listings through `listings_public` (a view with `security_invoker = true`, safe columns only, no exact location); seller writes. Never a plain view (views bypass RLS by default) |
 | `conversations` / `messages` | buyer, seller, listing; sender, body, created_at | only the two participants |
 | `style_profiles` | owner_id, computed_at, summary jsonb | owner only |
 | `inspiration_requests` | id, owner_id, image_path, status, result jsonb | owner only |
-| `external_products` | source ('channel3'), external_id, title, brand, image_url, category, colours[], embedding, price_hint, currency, availability_hint, fetched_at | readable by authenticated users; written only by Edge Functions. **No buy URLs stored** (see `docs/channel3.md`) |
+| `external_products` | source ('channel3'), external_id, title, brand, image_url, category, colours[], materials[], embedding, price_hint, currency, availability_hint, best_offer_domain, fetched_at | readable by authenticated users; written only by Edge Functions. _Pending owner decision (PR #5): store no buy URLs and fetch them fresh, per Channel3 guidance (`docs/channel3.md`). Until approved, AGENTS.md wording applies._ |
 | `external_search_cache` | key_hash, external_ids[], fetched_at | Edge Functions only |
 | `recommendation_feedback` | owner_id, seed_item_id, candidate ref, signal (shown/accepted/liked/disliked/worn), created_at | owner only |
-| `api_usage` | feature, provider, units, cost_estimate, user_id, created_at | Edge Functions write; owners read via dashboard |
+| `api_usage` | feature, provider, units (credits / tokens / calls), cost_estimate_usd, user_id (nullable), created_at | Edge Functions write; owners read via dashboard. On account delete: `user_id` set to null (aggregate cost kept) |
+| `events` | user_id, name, props jsonb, created_at | insert-own-only; deleted with the account. See `docs/metrics.md` |
 
 Conventions: `uuid` primary keys, `owner_id` → `auth.users(id) on delete cascade`, `created_at`/`updated_at` timestamps,
 enums as `text` + check constraints mirroring `src/lib/taxonomy.ts`.
@@ -55,13 +56,20 @@ enums as `text` + check constraints mirroring `src/lib/taxonomy.ts`.
 | `item-photos` | `{user_id}/{item_id}/{original|clean|thumb}.webp` | private; owner via RLS on `storage.objects` |
 | `outfit-photos` | `{user_id}/{outfit_id}.webp` | private |
 | `inspiration` | `{user_id}/{request_id}/…` | private; crops shared with Channel3 only via ≤ 10-min signed URLs |
-| `listing-photos` | `{listing_id}/…` | public read while listing active (copies, not the private originals) |
+| `listing-photos` | `{user_id}/{listing_id}/…` | signed-in read while listing active (copies, not the private originals) |
+| `uploads-quarantine` | `{user_id}/{upload_id}` | write-own only, **no client read**; Edge Function strips EXIF + moves the file, then deletes it |
 
-EXIF (incl. GPS) is stripped **on the device before upload** where possible, and again in `process-image`.
-Images are resized to max 1600 px and stored as WebP.
+**EXIF (incl. GPS):** photos are re-encoded on the device before upload (drops EXIF), and every upload lands in
+`uploads-quarantine` first. `process-image` strips metadata again, resizes (max 1600 px, WebP) and writes the clean file
+to the real bucket, then deletes the quarantine copy. No file with metadata is ever readable by clients or kept.
+
+**Faces:** before any photo goes to an AI provider (tagging, outfit analysis, style analysis, garment detection),
+`process-image` detects faces and blurs them unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits
+are the common case, so this is the default path, not an edge case.
 
 ## Key flows
-**Add item (M1, target < 30 s):** camera → client resize + EXIF strip → upload to `item-photos` → insert `clothing_items`
+**Add item (M1, target < 30 s):** camera → client resize/re-encode → upload to `uploads-quarantine` → `process-image`
+(strip, blur faces, move to `item-photos`) → insert `clothing_items`
 (status `owned`, tags empty) → call `tag-item` → user confirms chips → save → `process-image` + `embed` run in background.
 
 **Post outfit (M2):** photo (optional) + pick items → insert `outfits` + `outfit_items` → wear stats update via view.
@@ -85,8 +93,11 @@ need a separate dev project (free tier allows 2 projects) or Supabase branching 
 ## Security and privacy checklist (enforced in review)
 - RLS enabled on every table (CI checks migrations) and Supabase security advisors clean after each migration.
 - Only the publishable key in the app; secret keys only in Edge Function secrets.
-- No faces analysed unless the user opts in; inspiration crops exclude faces.
-- GDPR: `account-export` (JSON + photos zip) and `account-delete` (cascade + storage cleanup) ship in M1, not later.
+- No faces sent to AI unless the user opts in (blurred by default, see Storage); inspiration crops exclude faces.
+- GDPR: `account-export` (JSON + photos zip) and `account-delete` ship in M1, not later. Delete rules per table:
+  own rows cascade from `auth.users`; all storage under `{user_id}/` in every bucket is removed; `api_usage.user_id`
+  is nulled; `events` deleted; messages the user sent to others are replaced with "deleted user" and their body cleared;
+  active listings are withdrawn first.
 - Consent flags stored on `profiles` with timestamp.
 
 ## Open questions for owners

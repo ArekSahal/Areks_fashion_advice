@@ -16,13 +16,17 @@ Defined once in `src/lib/taxonomy.ts` and mirrored as DB check constraints in M1
 | Attribute | Values | Notes |
 |---|---|---|
 | category / subcategory | top, bottom, one_piece, outerwear, footwear, accessory → ~45 subcategories | one subcategory per item |
-| colours | 28 named colours with hex + hue, flagged neutral or not | up to 3 per item, dominant first |
+| layer | base, mid, outer (tops and outerwear only), derived from subcategory | allows shirt + knit + coat |
+| colours | 28 named colours with hex, painter's-wheel (RYB) hue, tone (light/mid/deep), neutral flag | up to 3 per item, dominant first |
 | pattern | 15 values (solid, stripe, check, floral, graphic…) | "quiet" patterns (solid, herringbone, knit texture) mix with anything |
 | material | 19 values, each with warmth 1–5 | drives season and layering |
 | fit | slim, regular, relaxed, oversized, cropped, tailored | |
 | formality | 1 very casual … 5 formal | the most important pairing signal after colour |
 | season | spring, summer, autumn, winter (multi) | empty = all-season |
 | occasion | everyday, work, evening, party, wedding, sport, outdoor, travel, lounge | used for open questions and filters |
+
+Hues sit on the **painter's (RYB) colour wheel**, not the screen (RGB) wheel, because that's the wheel stylists use:
+red/green, blue/orange and yellow/purple come out complementary. Gold and silver are neutral metallics.
 
 Navy, camel, olive, beige, brown and denim blue count as **neutrals** in menswear and womenswear styling, not just
 black/white/grey. That single choice makes suggestions feel far more natural than pure colour-wheel maths.
@@ -36,15 +40,19 @@ For a seed item S and candidate C (different category slot, e.g. top ↔ bottom)
 ```
 score = 0.35·colour + 0.25·formality + 0.15·pattern + 0.10·season + 0.15·slot_bonus
 ```
-- **colour**: best `colourScore` across the two items' dominant colours. Neutral pairs with everything; monochrome and
-  analogous score high; complementary is a deliberate statement; muddy in-between hues ("clash") score low.
+- **colour** (`itemColourScore`): 70 % from the two dominant colours, 30 % from the best secondary pairing, so a small
+  neutral detail can't rescue two clashing main colours. Neutral pairs with everything; monochrome and analogous score
+  high; same-tone pairs (two pastels, two jewel tones) score well; complementary is a deliberate statement; the
+  in-between hues ("contrast") score lowest but are not forbidden.
 - **formality**: gap 0 → 1, gap 1 → 0.85, gap 2 → 0.5 (intentional contrast like blazer + jeans), 3+ → near 0.
 - **pattern**: one print + quiet pieces = 1; two loud prints = 0.3.
 - **season**: hard filter when the user asks "for today" (weather), soft score otherwise.
 - **slot_bonus**: candidate fills a slot the seed needs (top needs bottom + shoes; dress needs shoes + outerwear).
 
-Hard rules (filter, don't score): same slot never pairs (two trousers); warmth gap ≥ 3 is dropped (linen shirt + down
-parka is fine as layering, so outerwear is exempt); items with status `sold` / `archived` are excluded.
+Hard rules (filter, don't score, `canPair`): two items in the same slot never pair (two trousers, two base-layer tops,
+two coats), but layering is fine (shirt + knit + coat; dress + cardigan); several accessories are fine. Warmth gap ≥ 3
+between non-outerwear pieces is dropped (outerwear is exempt: linen shirt + down parka is layering). Items with status
+`sold` / `archived` are excluded.
 
 **Explanation:** the top two contributing rules become the sentence, e.g.
 _"The camel coat warms up the grey trousers, and both sit at the same smart-casual level."_

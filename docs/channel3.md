@@ -40,7 +40,7 @@ seconds of latency, so only behind an explicit user action.
 
 ## Caching rules (important)
 Channel3 says: **cache IDs, not data**. Prices, stock and offer URLs change, and offer URLs are short-lived affiliate links.
-So `external_products` works as follows (this replaces the "cache results" line in AGENTS.md; needs owner OK, see below):
+Proposed `external_products` rules (they change the "cache results" line in AGENTS.md, so they **need owner OK** first, see below):
 
 | Data | Cache? | TTL |
 |---|---|---|
@@ -56,12 +56,13 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
 ## Staying in the free tier
 - Free: **1,000 credits/month**, then **$0.007 per call** (≈ $7 per extra 1,000). Each call = 1 credit; product detail and
   product subscriptions are free.
-- Budget per feature (until owners approve paid): M6 recreate 700/month, wardrobe gaps 200, buffer 100.
+- Budget per feature (until owners approve paid): M6 recreate 600/month (incl. EU-fallback searches), wardrobe gaps 150,
+  "more like this" (`/v1/similar`) 150, buffer 100 (category/brand lookups, reporting).
 - One recreate request ≈ 3–5 garments ≈ 3–5 searches before cache. Target cache hit rate ≥ 40 % → ~2.5 credits per request
-  → ~280 recreates/month on the free tier.
+  → ~240 recreates/month on the free tier.
 - Guards in the Edge Function:
   - per-user limit: 5 recreates/day, 30/month (configurable)
-  - global monthly counter in `api_usage` (feature, credits, date); when 90 % used, stop calling Channel3 and show
+  - global monthly counter from `api_usage` (provider `channel3`, units = credits); when 90 % used, stop calling Channel3 and show
     owned + marketplace results only, with a "shop results paused" note
   - dedupe garments in one request; only search garments the user didn't match well in their own wardrobe
     (owned match score below threshold). That's the biggest saving and fits "owned first".
@@ -69,7 +70,8 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
 
 ## Ranking and labelling
 - Order in the recreated outfit: **owned → marketplace (used) → Channel3 used → Channel3 new**.
-- Within Channel3 results, rank by visual + attribute fit (Fashion agent's score), then price fit, then availability in SE/EU.
+- Only offers that ship to Sweden are shown (locale `SE`; with the `EU` fallback we keep only offers whose shop ships to SE).
+- Within those, rank by visual + attribute fit (Fashion agent's score), then price fit.
   `max_commission_rate` is used **only as a tie-breaker** when fit scores are equal. Never above a better match.
 - Every shop link is labelled "Shop link · we may earn a commission" in the UI. Link opens the retailer in the browser.
 

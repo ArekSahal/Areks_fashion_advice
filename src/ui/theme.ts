@@ -1,19 +1,19 @@
 import { useColorScheme } from 'react-native';
-import { aspect, colours, motion, radius, space, touchTarget, type, type ColourTokens } from './tokens';
+import { aspect, colours, motion, radius, space, touchTarget, typography, type ColourTokens } from './tokens';
 
 export type Theme = {
   scheme: 'light' | 'dark';
   colours: ColourTokens;
   space: typeof space;
   radius: typeof radius;
-  type: typeof type;
+  typography: typeof typography;
   touchTarget: number;
   motion: typeof motion;
   aspect: typeof aspect;
 };
 
 export function makeTheme(scheme: 'light' | 'dark'): Theme {
-  return { scheme, colours: colours[scheme], space, radius, type, touchTarget, motion, aspect };
+  return { scheme, colours: colours[scheme], space, radius, typography, touchTarget, motion, aspect };
 }
 
 const themes = { light: makeTheme('light'), dark: makeTheme('dark') };

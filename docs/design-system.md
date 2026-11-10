@@ -22,18 +22,20 @@ Tone of voice: a friendly stylist. Short, concrete, never judgmental ("Try it wi
 | `background` | `#FAF8F5` | `#141412` | page |
 | `surface` | `#FFFFFF` | `#1E1D1A` | cards, sheets |
 | `surfaceSunken` | `#F1EEE8` | `#262521` | photo wells, inputs |
-| `border` | `#E6E1D8` | `#34322D` | hairlines, secondary buttons |
+| `border` | `#E6E1D8` | `#34322D` | decorative hairlines only |
+| `borderStrong` | `#8C857A` | `#7A746A` | outlines that must be seen: inputs, secondary buttons (≥ 3.4:1) |
 | `text` | `#1C1B19` | `#F2F0EC` | main text (16.2:1) |
-| `textMuted` | `#6B665E` | `#A39E95` | secondary text (≥ 5.4:1) |
+| `textMuted` | `#6B665E` | `#A39E95` | secondary text (≥ 4.9:1) |
 | `accent` | `#A4482F` | `#E5917A` | primary action, selection (5.6:1 / 7.6:1) |
 | `onAccent` | `#FFFFFF` | `#1C1B19` | text on accent (5.9:1 / 7.1:1) |
 | `danger` / `success` | `#B42318` / `#2F7D4F` | `#F27A6E` / `#6CC28F` | errors, confirmations |
 
-All pairs meet WCAG AA (≥ 4.5:1). This is enforced by `src/ui/tokens.test.ts`, so a new token pair must be added there.
-Garment colour swatches (from `src/lib/taxonomy.ts`) are data, not UI colours, and always sit on a `border` ring so
+All text pairs meet WCAG AA (≥ 4.5:1) and `borderStrong` outlines meet 3:1 (WCAG 1.4.11). This is enforced by
+`src/ui/tokens.test.ts`, so a new token pair must be added there.
+Garment colour swatches (from `src/lib/taxonomy.ts`) are data, not UI colours, and always sit on a `borderStrong` ring so
 white and black swatches stay visible in both modes.
 
-## Type
+## Typography (`theme.typography`)
 System font (San Francisco / Roboto / system-ui on web): fast, native, scales with the user's text size.
 
 | Variant | Size / line | Weight | Use |

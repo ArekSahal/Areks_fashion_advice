@@ -10,7 +10,7 @@ type AppTextProps = TextProps & { variant?: TypeVariant; muted?: boolean; tone?:
 export function Text({ variant = 'body', muted, tone = 'default', style, ...rest }: AppTextProps) {
   const t = useTheme();
   const colour = tone === 'danger' ? t.colours.danger : tone === 'success' ? t.colours.success : muted ? t.colours.textMuted : t.colours.text;
-  return <RNText {...rest} style={[t.type[variant], { color: colour }, style]} />;
+  return <RNText {...rest} style={[t.typography[variant], { color: colour }, style]} />;
 }
 
 /** Page wrapper: background, safe areas, standard padding. */
@@ -59,7 +59,7 @@ export function Button({ label, onPress, variant = 'primary', disabled, loading 
           borderRadius: t.radius.pill,
           paddingHorizontal: t.space.xl,
           backgroundColor: primary ? t.colours.accent : 'transparent',
-          borderColor: primary ? t.colours.accent : t.colours.border,
+          borderColor: primary ? t.colours.accent : t.colours.borderStrong,
           opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
         },
       ]}
