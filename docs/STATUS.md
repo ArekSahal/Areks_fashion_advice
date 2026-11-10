@@ -15,7 +15,7 @@ Milestone 0: project setup.
 - Nothing yet.
 
 ## Blocked / needs owners
-- Channel3 developer API key: sign up at https://www.trychannel3.com/sign-up/developer.
+- Channel3 API key: obtained; owner to save it as Supabase Edge Function secret `CHANNEL3_API_KEY`.
 
 ## Next up
 - Scaffold Expo + TypeScript app, Supabase project structure, CI.

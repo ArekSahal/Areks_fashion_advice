@@ -18,7 +18,8 @@ flag risks, and suggest simpler options. Ask before decisions that are expensive
 - Online shops: Channel3 product data API (https://channel3.ai/docs), with TypeScript SDK and
   MCP. Search products, get images, live prices, availability, merchant URLs, and commission
   info. Call it only from Supabase Edge Functions (keep the API key server-side). Cache results
-  in `external_products`.
+  in `external_products`. The key is stored as the Supabase Edge Function secret `CHANNEL3_API_KEY`
+  (read it with `Deno.env.get("CHANNEL3_API_KEY")`).
 - Tests: Vitest/Jest for logic, Playwright or Maestro for key flows
 - CI: GitHub Actions (lint, typecheck, tests, Supabase migration check)
 
