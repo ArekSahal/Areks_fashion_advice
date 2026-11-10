@@ -1,0 +1,48 @@
+# Lint, typecheck, unit tests, migration check and a web build on every PR and push to main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Migration check
+        run: bash scripts/check-migrations.sh
+
+      - name: Require lockfile
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "::error::package-lock.json missing. Push to an agent/* branch to run 'Bootstrap dependencies'."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npx expo install --check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Web build
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://emnkjfoccluygilkebbz.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_4kGFl0Nv7iTREHDc9wAfSw_5-Gqavom
+        run: npm run build:web

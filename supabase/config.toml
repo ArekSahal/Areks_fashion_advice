@@ -1,0 +1,31 @@
+# Supabase CLI config for local development (`supabase start`).
+# Remote project: Areks_fashion_advice, ref emnkjfoccluygilkebbz (eu-north-1).
+# Link with: supabase link --project-ref emnkjfoccluygilkebbz
+project_id = "areks_fashion_advice"
+
+[api]
+port = 54321
+schemas = ["public", "graphql_public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+port = 54323
+
+[storage]
+file_size_limit = "10MiB"
+
+[auth]
+site_url = "http://localhost:8081"
+additional_redirect_urls = [
+  "areksfashion://",
+  "https://areksahal.github.io/Areks_fashion_advice/",
+]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true

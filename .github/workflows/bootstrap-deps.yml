@@ -1,0 +1,72 @@
+# Agents work in a sandbox without npm registry access, so they cannot create package-lock.json.
+# When package.json changes on an agent/* branch, this job resolves SDK-compatible versions with
+# `expo install`, writes package-lock.json and commits both back to the branch.
+#
+# To add a dependency: add its name to EXPO_DEPS / DEV_DEPS below (or to package.json) and push.
+name: Bootstrap dependencies
+
+on:
+  push:
+    branches: ['agent/**']
+    paths:
+      - package.json
+      - .github/workflows/bootstrap-deps.yml
+      - scripts/resolve-deps.mjs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    env:
+      DEPS: >-
+        expo-router expo-linking expo-constants expo-status-bar
+        react react-dom react-native react-native-web @expo/metro-runtime
+        react-native-safe-area-context react-native-screens
+        @react-native-async-storage/async-storage react-native-url-polyfill
+        @supabase/supabase-js
+      DEV_DEPS: 'typescript @types/react eslint eslint-config-expo vitest'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Resolve versions
+        run: |
+          # 1. Install only expo (no auto-installed peers) to read the SDK's version table.
+          npm install --no-audit --no-fund --legacy-peer-deps --no-save expo@"$(node -p "require('./package.json').dependencies.expo")"
+          # 2. Pin every package to the SDK version (others to latest), then install once.
+          node scripts/resolve-deps.mjs "$DEPS" "$DEV_DEPS"
+          rm -rf node_modules package-lock.json
+          npm install --no-audit --no-fund
+          node scripts/resolve-deps.mjs --pin
+          npm install --no-audit --no-fund
+          npx expo install --check
+
+      - name: Smoke check
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://emnkjfoccluygilkebbz.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_4kGFl0Nv7iTREHDc9wAfSw_5-Gqavom
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build:web
+
+      - name: Commit lockfile
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
+          git commit -m "chore: resolve dependencies and lockfile [bootstrap]"
+          git push
