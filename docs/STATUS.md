@@ -6,6 +6,8 @@ _Last updated: 2026-11-10 (setup)_
 Milestone 0: project setup.
 
 ## Done
+- Channel3 API key saved as Supabase secret `CHANNEL3_API_KEY`.
+- Specialist agents added: UX, Market, Fashion, Platform (`docs/agents/`).
 - Stack approved: Expo + TypeScript + Supabase.
 - Repo created, agent instructions (`AGENTS.md`) and docs added.
 - Heartbeat issue created.
@@ -15,7 +17,6 @@ Milestone 0: project setup.
 - Nothing yet.
 
 ## Blocked / needs owners
-- Channel3 API key: obtained; owner to save it as Supabase Edge Function secret `CHANNEL3_API_KEY`.
 
 ## Next up
 - Scaffold Expo + TypeScript app, Supabase project structure, CI.

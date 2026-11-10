@@ -4,6 +4,10 @@
 - Expo + TypeScript scaffold (iOS, Android, web), lint, typecheck, tests
 - Supabase project structure (`supabase/` with migrations), local dev setup
 - GitHub Actions CI
+- UX agent: design system v1 (`docs/design-system.md`) before feature screens
+- Fashion agent: garment taxonomy + styling knowledge base v1 (`docs/styling-engine.md`)
+- Platform agent: `docs/architecture.md` and `docs/metrics.md`
+- Market agent: `docs/channel3.md` (API usage, caching, cost model)
 
 ## M1: Auth and wardrobe (MVP core)
 - Sign up / log in (email + Google/Apple), profiles, RLS

@@ -75,9 +75,22 @@ user data (drop/truncate/delete), take a backup or export first and note it in t
 - GitHub Issues = tasks (labels: `feature`, `bug`, `agent-task`, `needs-owner`, `idea`)
 
 ## Roles
-- **Lead agent**: reads the heartbeat thread, plans, breaks work into issues, assigns tasks, writes status.
+- **Lead agent**: reads the heartbeat thread, plans, breaks work into issues, assigns tasks to the
+  agents below, resolves overlaps, and writes status.
 - **Builder agents**: one issue = one branch (`agent/<issue>-<slug>`) = one PR. Small PRs with tests.
 - **Reviewer agent**: reviews every PR against the issue, tests, security/RLS, and privacy.
+
+### Specialist agents (full briefs in `docs/agents/`)
+| Agent | Brief | Focus | Reviews PRs that touch |
+|-------|-------|-------|------------------------|
+| **UX** | `docs/agents/ux.md` | One shared structure and visual theme, design system | Any UI |
+| **Market** | `docs/agents/market.md` | Channel3 shopping experience and operating cost | Channel3 functions, `external_products`, shop links |
+| **Fashion** | `docs/agents/fashion.md` | Expert stylist/personal shopper: AI + ML recommendation engine | Recommendations, style analysis, taxonomy |
+| **Platform** | `docs/agents/platform.md` | Features working together, end-to-end customer experience, reliability | Data model, cross-feature flows, CI, performance |
+
+Label issues with the owning agent: `agent:ux`, `agent:market`, `agent:fashion`, `agent:platform`.
+A PR in a specialist's area needs that specialist's review (run as a sub-agent with its brief) before it's ready for the owners.
+When specialists disagree, the lead agent summarises the trade-off in the heartbeat and the owners decide.
 
 ## Heartbeat
 Runs on a schedule (weekday mornings). Each run:
@@ -86,7 +99,8 @@ Runs on a schedule (weekday mornings). Each run:
 3. Does the next unblocked piece of work on the roadmap (in a branch + PR).
 4. Posts a comment in the Heartbeat issue in this format:
    **Done since last time** · **In progress** · **Blocked / needs you** (tag @ArekSahal / @Yolkem23)
-   · **Next up** · **Ideas / questions for discussion** · **Cost/usage notes**
+   · **Next up** · **Specialists** (one line each from UX, Market, Fashion, Platform; skip if nothing new)
+   · **Ideas / questions for discussion** · **Cost/usage notes**
 5. Updates `docs/STATUS.md`.
 Keep it short and easy to scan on a phone.
 
