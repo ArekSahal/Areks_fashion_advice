@@ -1,11 +1,14 @@
 # Status
 
-_Last updated: 2026-11-10 (M0 scaffold)_
+_Last updated: 2026-11-10 (M0 complete, pending merge of PR #5)_
 
 ## Current phase
-Milestone 0: project setup.
+Milestone 0 done once PR #5 is merged. Next: M1 (auth and wardrobe).
 
 ## Done
+- M0 specialist foundations (PR #5, issue #4): design system v1 + tokens and base components (`src/ui/`),
+  garment taxonomy + colour/formality/pattern rules (`src/lib/taxonomy.ts`), `docs/styling-engine.md`,
+  `docs/architecture.md`, `docs/metrics.md`, `docs/channel3.md`.
 - App scaffold (PR #3, issue #2): Expo SDK 57 / React Native 0.86 + TypeScript + Expo Router, web build on
   the GitHub Pages sub-path, Supabase client with a guard against secret keys in the bundle.
 - `supabase/` folder (config, migrations, functions). Live DB is empty, so repo and DB match.
@@ -20,11 +23,12 @@ Milestone 0: project setup.
 - Supabase project created (ref `emnkjfoccluygilkebbz`, eu-north-1).
 
 ## In progress
-- PR #3 waiting for owner review/merge.
+- PR #5 waiting for owner review/merge.
 
 ## Blocked / needs owners
-- Review and merge PR #3 (`needs-owner`).
+- Review and merge PR #5 (`needs-owner`).
+- Decisions asked in the docs (see PR #5): Channel3 caching change, Channel3 used offers, dev DB project,
+  language (sv/en), menswear/womenswear scope, visual direction.
 
 ## Next up
-- Rest of M0: design system v1 (UX), styling engine doc (Fashion), architecture + metrics (Platform), Channel3 doc (Market).
-- Then M1: auth + profiles with RLS.
+- M1: auth + profiles with RLS, GDPR export/delete, then add-item flow with AI tagging.
