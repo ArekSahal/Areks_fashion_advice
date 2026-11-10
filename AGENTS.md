@@ -66,6 +66,18 @@ user data (drop/truncate/delete), take a backup or export first and note it in t
   product results. Stay inside the free tier until owners approve a paid plan.
 - Never commit secrets. Use `.env` (gitignored) and Supabase secrets.
 
+## Test build on GitHub Pages
+The owners test on their phones at **https://areksahal.github.io/Areks_fashion_advice/**.
+- `.github/workflows/deploy-pages.yml` builds the Expo web version and publishes it on every push to `main`.
+- As soon as something works in a PR, publish a preview: run the workflow on the PR branch
+  (`gh workflow run deploy-pages.yml --ref <branch>`). Pages shows one build at a time; the
+  latest deploy wins. `/build.txt` shows which branch and commit is live.
+- Post the link in the heartbeat with what to test (2–3 bullet points) and which branch it is.
+- Configure Expo web for the sub-path (`experiments.baseUrl: "/Areks_fashion_advice"` in app config).
+- Only publishable values (Supabase URL + anon key, as repo variables) go into the web build. Never secret keys.
+- Mobile web must work for the core flows: camera/photo upload via the browser, login, wardrobe, diary.
+  Add the Pages URL to Supabase Auth redirect URLs.
+
 ## Repo files you keep up to date
 - `AGENTS.md`: this file (conventions, commands, rules)
 - `docs/STATUS.md`: current state, what's in progress, blockers

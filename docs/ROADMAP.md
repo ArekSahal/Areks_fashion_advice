@@ -4,6 +4,7 @@
 - Expo + TypeScript scaffold (iOS, Android, web), lint, typecheck, tests
 - Supabase project structure (`supabase/` with migrations), local dev setup
 - GitHub Actions CI
+- First working web build published to GitHub Pages for mobile testing (as early as possible)
 - UX agent: design system v1 (`docs/design-system.md`) before feature screens
 - Fashion agent: garment taxonomy + styling knowledge base v1 (`docs/styling-engine.md`)
 - Platform agent: `docs/architecture.md` and `docs/metrics.md`

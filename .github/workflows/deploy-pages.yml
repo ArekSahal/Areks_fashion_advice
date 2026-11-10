@@ -1,0 +1,72 @@
+# Builds the Expo web version of the app and publishes it to GitHub Pages
+# so the owners can test on their phones:
+#   https://areksahal.github.io/Areks_fashion_advice/
+#
+# Runs on every push to main, and can be run by hand for any branch
+# (Actions → "Deploy test build to GitHub Pages" → Run workflow → pick the branch),
+# which is how agents publish a preview of a PR before it is merged.
+name: Deploy test build to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.check.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the app exists yet
+        id: check
+        run: |
+          if [ -f package.json ]; then echo "app=yes" >> "$GITHUB_OUTPUT"; else echo "app=no" >> "$GITHUB_OUTPUT"; echo "No app yet, skipping."; fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.app == 'yes'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        if: steps.check.outputs.app == 'yes'
+        run: npm ci
+
+      - name: Export web build
+        if: steps.check.outputs.app == 'yes'
+        env:
+          # Public (publishable) values only. Never put secret keys here.
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          npx expo export --platform web --output-dir dist
+          cp dist/index.html dist/404.html   # single-page-app routing on Pages
+          echo "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}" > dist/build.txt
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.check.outputs.app == 'yes'
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.app == 'yes'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
