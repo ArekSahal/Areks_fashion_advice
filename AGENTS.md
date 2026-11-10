@@ -12,6 +12,7 @@ flag risks, and suggest simpler options. Ask before decisions that are expensive
 ## Tech stack (defaults; change only with owner approval)
 - App: Expo (React Native) + TypeScript, also runs on the web via Expo Web
 - Backend: Supabase (Postgres, Auth, Storage, Edge Functions, pgvector)
+  Project: `Areks_fashion_advice`, ref `emnkjfoccluygilkebbz`, region eu-north-1 (Stockholm)
 - AI: a vision LLM to tag clothing in photos (type, colour, pattern, material, formality,
   season); embeddings in pgvector for similarity and matching; background removal on item photos
 - Online shops: Channel3 product data API (https://channel3.ai/docs), with TypeScript SDK and
