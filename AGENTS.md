@@ -74,7 +74,7 @@ The owners test on their phones at **https://areksahal.github.io/Areks_fashion_a
   latest deploy wins. `/build.txt` shows which branch and commit is live.
 - Post the link in the heartbeat with what to test (2–3 bullet points) and which branch it is.
 - Configure Expo web for the sub-path (`experiments.baseUrl: "/Areks_fashion_advice"` in app config).
-- Only publishable values (Supabase URL + anon key, as repo variables) go into the web build. Never secret keys.
+- Only publishable values (Supabase URL + publishable key, set in the workflow) go into the web build. Never secret keys.
 - Mobile web must work for the core flows: camera/photo upload via the browser, login, wardrobe, diary.
   Add the Pages URL to Supabase Auth redirect URLs.
 

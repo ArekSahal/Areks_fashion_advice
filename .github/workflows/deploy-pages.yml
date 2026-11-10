@@ -47,9 +47,9 @@ jobs:
       - name: Export web build
         if: steps.check.outputs.app == 'yes'
         env:
-          # Public (publishable) values only. Never put secret keys here.
-          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          # Public (publishable) values only, safe to commit. Never put secret keys here.
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL || 'https://emnkjfoccluygilkebbz.supabase.co' }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_4kGFl0Nv7iTREHDc9wAfSw_5-Gqavom' }}
         run: |
           npx expo export --platform web --output-dir dist
           cp dist/index.html dist/404.html   # single-page-app routing on Pages
