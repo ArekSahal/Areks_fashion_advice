@@ -13,6 +13,7 @@ Milestone 0: project setup.
 - "Bootstrap dependencies" workflow: resolves SDK-compatible versions and commits `package-lock.json`
   (agent sandboxes have no npm access).
 - First preview build published to GitHub Pages from `agent/2-m0-scaffold`.
+- Pages URL added to Supabase Auth redirect URLs (by @ArekSahal, 2026-11-10).
 - Channel3 API key saved as Supabase secret `CHANNEL3_API_KEY`.
 - Specialist agents added: UX, Market, Fashion, Platform (`docs/agents/`).
 - Stack approved: Expo + TypeScript + Supabase.
@@ -23,7 +24,6 @@ Milestone 0: project setup.
 
 ## Blocked / needs owners
 - Review and merge PR #3 (`needs-owner`).
-- Add `https://areksahal.github.io/Areks_fashion_advice/` to Supabase Auth → URL configuration → Redirect URLs (needed before login works in M1).
 
 ## Next up
 - Rest of M0: design system v1 (UX), styling engine doc (Fashion), architecture + metrics (Platform), Channel3 doc (Market).
