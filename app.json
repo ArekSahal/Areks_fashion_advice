@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Areks Fashion Advice",
+    "slug": "areks-fashion-advice",
+    "scheme": "areksfashion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.areksahal.fashionadvice"
+    },
+    "android": {
+      "package": "com.areksahal.fashionadvice"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "baseUrl": "/Areks_fashion_advice",
+      "typedRoutes": true
+    }
+  }
+}

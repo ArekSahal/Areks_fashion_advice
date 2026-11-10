@@ -7,3 +7,4 @@ dist/
 web-build/
 .DS_Store
 supabase/.temp/
+expo-env.d.ts
