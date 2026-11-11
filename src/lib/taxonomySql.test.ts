@@ -17,7 +17,7 @@ function valuesFor(column: string): string[] {
   expect(start, `column ${column} not found`).toBeGreaterThanOrEqual(0);
   const rest = sql.slice(start);
   const end = rest.search(/\n {2}\w+ (text|smallint|jsonb|timestamptz|uuid)|\n\);/);
-  return [...rest.slice(0, end > 0 ? end : undefined).matchAll(/'([a-z_]+(?::[a-z_]+)?)'/g)].map((m) => m[1]);
+  return [...rest.slice(0, end > 0 ? end : undefined).matchAll(/'([a-z_]+(?::[a-z_]+)?)'/g)].map((m) => m[1] ?? '');
 }
 
 const sorted = (xs: readonly string[]) => [...xs].sort();
@@ -32,7 +32,7 @@ describe('clothing_items constraints match taxonomy.ts', () => {
   it('colours (current constraint, max 3)', () => {
     const latest = read(COLOURS_MIGRATION);
     expect(latest).toContain('cardinality(colours) <= 3');
-    const values = [...latest.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    const values = [...latest.matchAll(/'([a-z_]+)'/g)].map((m) => m[1] ?? '');
     expect(sorted(values)).toEqual(sorted(Object.keys(COLOURS)));
   });
   it('patterns', () => expect(sorted(valuesFor('pattern'))).toEqual(sorted(PATTERNS)));
