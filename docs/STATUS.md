@@ -1,11 +1,16 @@
 # Status
 
-_Last updated: 2026-11-11 (M1a auth + profiles, M1b provider proposal)_
+_Last updated: 2026-11-11 (M1c-1 wardrobe data layer)_
 
 ## Current phase
 M1: auth and wardrobe.
 
 ## Done
+- M1c-1 (PR #13, issue #12, stacked on #9): `clothing_items` table (owner-only RLS, column grants, taxonomy check
+  constraints kept in sync by `src/lib/taxonomySql.test.ts`), private buckets `uploads-quarantine` (write-own, no read)
+  and `item-photos` (owner read/delete, server writes). Applied to the live DB; security advisor clean.
+  `account-export` now includes wardrobe items (deployed). `supabase/tests/clothing_items_rls.sql` written but
+  **not yet run** (the SQL tool asked for a confirmation nobody could answer in the scheduled run).
 - M1a (PR #9, issue #8): `profiles` + RLS (applied; `supabase/tests/profiles_rls.sql` passes), email/password
   sign-up/sign-in, tab shell, profile screen, GDPR export/delete Edge Functions (deployed). CI green, preview deployed.
 - Owner decisions 2026-11-11 (PR #7): Channel3 used offers as middle tier, previews + live share one DB,
@@ -28,7 +33,8 @@ M1: auth and wardrobe.
 - Supabase project created (ref `emnkjfoccluygilkebbz`, eu-north-1).
 
 ## In progress
-- PR #9 (M1a) and PR #11 (M1b AI provider proposal) waiting for owners.
+- PR #9 (M1a), PR #11 (M1b AI provider proposal) and PR #13 (M1c-1) waiting for owners.
+- Run `supabase/tests/clothing_items_rls.sql` (next interactive run).
 
 ## Blocked / needs owners
 - Test and merge PR #9 (needs a real sign-up: Supabase's built-in email only reaches project team members).
@@ -37,5 +43,6 @@ M1: auth and wardrobe.
 
 ## Next up
 - M1a follow-ups: forgot-password flow, Google/Apple sign-in once OAuth apps exist.
-- M1c: add item (camera/gallery, quarantine upload, EXIF strip, storage buckets + RLS), wardrobe grid.
+- M1c-2: `process-image` Edge Function (EXIF strip, WebP, quarantine → item-photos), add-item screen
+  (camera/gallery via expo-image-picker, needs a bootstrap run for the new dependency), wardrobe grid.
 - M1d: AI tagging with confirmation and filters (after the provider decision).

@@ -12,6 +12,7 @@ const CORS = {
 // table → column that holds the owner's user id
 const USER_TABLES: Record<string, string> = {
   profiles: 'id',
+  clothing_items: 'owner_id',
 };
 
 const SIGNED_URL_SECONDS = 7 * 24 * 60 * 60;
