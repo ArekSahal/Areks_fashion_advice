@@ -85,6 +85,22 @@ Label issues with the owning agent: `agent:ux`, `agent:market`, `agent:fashion`,
 A PR in a specialist's area needs that specialist's review (run as a sub-agent with its brief) before it's ready for the owners.
 When specialists disagree, the lead agent summarises the trade-off in the heartbeat and the owners decide.
 
+## When owner input is needed
+Pick the case that fits. Ask on the **issue**, not only in the PR, and add it to "Waiting on owners".
+1. **Decision needed before building** (provider, pricing, product rule, anything in
+   "What requires owner approval"): don't write code and don't open a PR. Comment on the issue with
+   2–3 options, the trade-offs and your recommendation, and add the `needs-owner` label. Start building
+   only after an owner answers (`/approve`, `/direct` or a plain reply).
+2. **Blocked partway** (a secret, an OAuth app, a dashboard setting, a confirmation an unattended run
+   can't give): push the work as a **draft** PR so nothing is lost, add `needs-owner` to the issue,
+   and comment on the issue with the exact action needed and a link to the draft PR.
+   Always open the draft PR if the work already changed the live database, so the change is visible.
+3. **Done, waiting for test + merge:** mark the PR ready for review. A PR is only "ready" when
+   merging is the one thing left.
+
+**No stacking:** don't start a branch on top of an unmerged PR. Pick other unblocked work instead,
+or wait. If nothing is unblocked, say so in the heartbeat.
+
 ## Heartbeat
 The pinned issue **📡 Heartbeat** (#1) is where owners and agents meet.
 - **The issue body is the live status.** Edit it in place on every run; never let it go stale.
