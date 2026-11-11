@@ -1,11 +1,13 @@
 # Status
 
-_Last updated: 2026-11-10 (M0 complete, pending merge of PR #5)_
+_Last updated: 2026-11-11 (M0 done, owner decisions recorded)_
 
 ## Current phase
-Milestone 0 done once PR #5 is merged. Next: M1 (auth and wardrobe).
+M0 done (PR #5 merged). Next: M1 (auth and wardrobe).
 
 ## Done
+- Owner decisions 2026-11-11 (PR #7): Channel3 used offers as middle tier, previews + live share one DB,
+  app English-only for men and women. Recorded in DECISIONS.md, AGENTS.md and the docs.
 - M0 specialist foundations (PR #5, issue #4): design system v1 + tokens and base components (`src/ui/`),
   garment taxonomy + colour/formality/pattern rules (`src/lib/taxonomy.ts`), `docs/styling-engine.md`,
   `docs/architecture.md`, `docs/metrics.md`, `docs/channel3.md`.
@@ -23,12 +25,12 @@ Milestone 0 done once PR #5 is merged. Next: M1 (auth and wardrobe).
 - Supabase project created (ref `emnkjfoccluygilkebbz`, eu-north-1).
 
 ## In progress
-- PR #5 waiting for owner review/merge.
+- PR #7 (decision records) waiting for owner merge.
 
 ## Blocked / needs owners
-- Review and merge PR #5 (`needs-owner`).
-- Decisions asked in the docs (see PR #5): Channel3 caching change, Channel3 used offers, dev DB project,
-  language (sv/en), menswear/womenswear scope, visual direction.
+- Merge PR #7 (touches AGENTS.md).
+- Still open: Channel3 caching change (IDs only, fresh prices/links), per-user Channel3 limits (5/day, 30/month),
+  visual direction (warm paper + clay), app name in the UI.
 
 ## Next up
 - M1: auth + profiles with RLS, GDPR export/delete, then add-item flow with AI tagging.

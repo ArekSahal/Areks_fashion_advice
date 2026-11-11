@@ -85,10 +85,13 @@ rule score + embedding similarity → top 10 with reasons → log `shown` in `re
 |---|---|---|
 | Local | `supabase start` (Docker) + `npm run web` | config in `supabase/config.toml` |
 | Preview | GitHub Pages build of any branch (one at a time) | live |
-| Production DB | Supabase project `emnkjfoccluygilkebbz` | **the only remote DB, also used by previews** |
+| Production DB | Supabase project `emnkjfoccluygilkebbz` | the only remote DB, **shared by previews and the live app** |
 
-⚠️ **Risk:** previews and production share one database. Fine while we're the only users; before real users arrive we
-need a separate dev project (free tier allows 2 projects) or Supabase branching (paid). Decision needed before M1 ends.
+**Owner decision (2026-11-11): previews and live share one database.** Consequences agents must respect:
+- Migrations are additive and backwards-compatible (add columns/tables; rename or drop only in a later migration once
+  `main` no longer uses the old shape), because an older preview or the live build may still be running.
+- Test data created from previews is real data: use test accounts, and clean up what you create.
+- Destructive SQL (drop, truncate, mass delete/update) needs an owner `/approve` first, same as other irreversible actions.
 
 ## Security and privacy checklist (enforced in review)
 - RLS enabled on every table (CI checks migrations) and Supabase security advisors clean after each migration.
@@ -101,6 +104,5 @@ need a separate dev project (free tier allows 2 projects) or Supabase branching 
 - Consent flags stored on `profiles` with timestamp.
 
 ## Open questions for owners
-1. Separate dev Supabase project now (free) or when the first outside testers join?
-2. Vision/embedding provider: start with one hosted API (simplest) and revisit cost in M3? Platform + Fashion will propose
+1. Vision/embedding provider: start with one hosted API (simplest) and revisit cost in M3? Platform + Fashion will propose
    2 options with prices at the start of M1.

@@ -88,7 +88,7 @@ Unlocks after 15 diary outfits. Produces:
 1. Detect garments in the inspiration photo (vision model) and tag each with the same taxonomy.
 2. For each garment: score the user's own items (taxonomy match + embedding similarity). If the best owned match is good
    enough, stop there for that garment. Owned first saves money and fits our sustainability angle.
-3. Otherwise search the marketplace, then Channel3 used, then Channel3 new (see `docs/channel3.md`).
+3. Otherwise search the marketplace, then Channel3 second-hand offers, then Channel3 new (see `docs/channel3.md`).
 4. Show the full outfit with each piece labelled **owned / buy used / buy new** and a one-line reason for the match.
 
 ## 7. Evaluation set
@@ -101,6 +101,8 @@ Metric: NDCG@5 for "what goes with this?" plus agreement rate with "good" labels
 - No single "correct" style. The engine adapts to the user, not the other way round.
 - No pushing new purchases: buying suggestions only appear for real gaps or when the user asks.
 
-## Open questions for owners
-1. Should the app speak Swedish, English or both from day one? (Affects explanation templates.)
-2. Menswear, womenswear, or both at launch? The taxonomy covers both; the evaluation set needs to know.
+## Owner decisions
+- **English only** (2026-11-11): explanation templates and AI-written reasons are in English.
+- **Menswear and womenswear** (2026-11-11): the taxonomy covers both; `eval/pairs.json` must be roughly balanced between
+  them, and style archetypes must not assume a gender. Gender is never inferred from photos; users may optionally set
+  a shopping preference (menswear / womenswear / both) used only for Channel3 `gender` filters.

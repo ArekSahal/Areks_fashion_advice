@@ -33,8 +33,8 @@ seconds of latency, so only behind an explicit user action.
   inspiration photo, upload the crop to Storage, and pass a signed URL. Text query = our own tags ("navy wool overcoat").
 - **Filters instead of query-stuffing:** `price.max_price`, `gender`, `category_ids` (slugs), `colors.palette` (hex, from
   our colour tags), `attributes` (e.g. `material`), `sale: 'on_sale'`.
-- **Used offers:** `conditions: ['used']` returns second-hand offers from shops. These can fill the "buy used" tier when the
-  in-app marketplace has nothing.
+- **Used offers:** `conditions: ['used']` returns second-hand offers from shops. **Approved (2026-11-11)** as the middle tier:
+  searched after the in-app marketplace and before new items. Labelled "buy used" in the UI, same as marketplace items.
 - **Default filters:** `availability` defaults to in stock and `conditions` to new. Keep those defaults unless we ask for used.
 - `limit` max 30; we use 6–10 per garment.
 
@@ -90,5 +90,4 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
 
 ## Open questions for owners
 1. Approve the caching change above (store IDs + display fields; buy links fetched fresh). Needs a line in AGENTS.md.
-2. OK to use Channel3's **used** offers as a tier between our marketplace and new?
-3. Free-tier guard numbers (5/day, 30/month per user) fine for testing?
+2. Free-tier guard numbers (5/day, 30/month per user) fine for testing?

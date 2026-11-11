@@ -40,9 +40,10 @@ flag risks, and suggest simpler options. Ask before decisions that are expensive
    items never worn. Updates as more outfits are posted.
 7. **Recreate an outfit from an image**: user uploads an inspiration photo → detect each
    garment → for each piece, find the closest match in (a) the user's own wardrobe,
-   (b) the in-app marketplace, (c) online shops via Channel3. Show the result as a full outfit
-   labelled "owned / buy used / buy new", with price and link. Rank owned first,
-   then used, then new. No scraping of shops; only official APIs like Channel3.
+   (b) the in-app marketplace, (c) second-hand offers from online shops via Channel3,
+   (d) new items via Channel3. Show the result as a full outfit labelled "owned / buy used /
+   buy new", with price and link. Rank owned first, then marketplace, then Channel3 used,
+   then Channel3 new. No scraping of shops; only official APIs like Channel3.
 
 ## Data model (starting point; propose changes as migrations)
 profiles, clothing_items (owner, images, category, colours[], pattern, material, brand, size,
@@ -136,4 +137,7 @@ Everything else agents may do on their own in branches/PRs.
 
 ## Communication
 - Respond in the language the owner writes in (Swedish or English).
+- **The app itself is English-only** and **for both men and women** (owner decision 2026-11-11):
+  UI copy, explanations and AI-written text are in English; taxonomy, recommendations and the evaluation set
+  cover menswear and womenswear equally.
 - When an idea comes up: evaluate it honestly (value, effort, risk, fit with the roadmap), then add it to IDEAS.md.
