@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { validateDisplayName } from '@/lib/authForm';
@@ -34,21 +34,29 @@ export default function ProfileScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!userId) return;
-    setLoadFailed(false);
-    try {
-      const p = await fetchProfile(userId);
-      setProfile(p);
-      setName(p.display_name ?? '');
-    } catch {
-      setLoadFailed(true);
-    }
-  }, [userId]);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!userId) return;
+    let active = true;
+    fetchProfile(userId)
+      .then((p) => {
+        if (!active) return;
+        setProfile(p);
+        setName(p.display_name ?? '');
+      })
+      .catch(() => {
+        if (active) setLoadFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId, attempt]);
+
+  function retry() {
+    setLoadFailed(false);
+    setAttempt((a) => a + 1);
+  }
 
   async function save(update: ProfileUpdate, okText?: string) {
     if (!userId || !profile) return;
@@ -101,7 +109,7 @@ export default function ProfileScreen() {
     return (
       <Screen centered>
         <Text>We couldn’t load your profile.</Text>
-        <Button label="Try again" variant="secondary" onPress={load} />
+        <Button label="Try again" variant="secondary" onPress={retry} />
       </Screen>
     );
   }
