@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "Areks Fashion Advice",
-    "slug": "areks-fashion-advice",
-    "scheme": "areksfashion",
+    "name": "Cloey",
+    "slug": "cloey",
+    "scheme": "cloey",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.areksahal.fashionadvice"
+      "bundleIdentifier": "com.areksahal.cloey"
     },
     "android": {
-      "package": "com.areksahal.fashionadvice"
+      "package": "com.areksahal.cloey"
     },
     "web": {
       "bundler": "metro",

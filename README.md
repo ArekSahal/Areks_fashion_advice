@@ -1,4 +1,4 @@
-# Areks Fashion Advice
+# Cloey
 
 An app to document your wardrobe, log daily outfits, get matching suggestions, buy and sell
 clothes, analyse your style, and recreate outfits from inspiration photos.

@@ -1,4 +1,4 @@
-# Areks Fashion Advice: agent instructions
+# Cloey: agent instructions
 
 Read `AGENTS.md` first. It holds the full product brief, tech stack and workflow rules.
 Then read `docs/STATUS.md` and `docs/ROADMAP.md` before doing any work.

@@ -1,6 +1,6 @@
 # Roadmap
 
-## M0: Setup (done when PR #5 merges; scaffold in PR #3)
+## M0: Setup ✅ (2026-11-10, PRs #3 and #5)
 - Expo + TypeScript scaffold (iOS, Android, web), lint, typecheck, tests
 - Supabase project structure (`supabase/` with migrations), local dev setup
 - GitHub Actions CI

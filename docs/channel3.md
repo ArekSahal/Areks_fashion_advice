@@ -33,14 +33,14 @@ seconds of latency, so only behind an explicit user action.
   inspiration photo, upload the crop to Storage, and pass a signed URL. Text query = our own tags ("navy wool overcoat").
 - **Filters instead of query-stuffing:** `price.max_price`, `gender`, `category_ids` (slugs), `colors.palette` (hex, from
   our colour tags), `attributes` (e.g. `material`), `sale: 'on_sale'`.
-- **Used offers:** `conditions: ['used']` returns second-hand offers from shops. These can fill the "buy used" tier when the
-  in-app marketplace has nothing.
+- **Used offers:** `conditions: ['used']` returns second-hand offers from shops. **Approved (2026-11-11)** as the middle tier:
+  searched after the in-app marketplace and before new items. Labelled "buy used" in the UI, same as marketplace items.
 - **Default filters:** `availability` defaults to in stock and `conditions` to new. Keep those defaults unless we ask for used.
 - `limit` max 30; we use 6–10 per garment.
 
 ## Caching rules (important)
 Channel3 says: **cache IDs, not data**. Prices, stock and offer URLs change, and offer URLs are short-lived affiliate links.
-Proposed `external_products` rules (they change the "cache results" line in AGENTS.md, so they **need owner OK** first, see below):
+`external_products` rules (**owner-approved 2026-11-11**, AGENTS.md updated):
 
 | Data | Cache? | TTL |
 |---|---|---|
@@ -56,14 +56,15 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
 ## Staying in the free tier
 - Free: **1,000 credits/month**, then **$0.007 per call** (≈ $7 per extra 1,000). Each call = 1 credit; product detail and
   product subscriptions are free.
-- Budget per feature (until owners approve paid): M6 recreate 600/month (incl. EU-fallback searches), wardrobe gaps 150,
+- Planning budget per feature (a target, not a hard limit): M6 recreate 600/month (incl. EU-fallback searches), wardrobe gaps 150,
   "more like this" (`/v1/similar`) 150, buffer 100 (category/brand lookups, reporting).
 - One recreate request ≈ 3–5 garments ≈ 3–5 searches before cache. Target cache hit rate ≥ 40 % → ~2.5 credits per request
   → ~240 recreates/month on the free tier.
-- Guards in the Edge Function:
-  - per-user limit: 5 recreates/day, 30/month (configurable)
-  - global monthly counter from `api_usage` (provider `channel3`, units = credits); when 90 % used, stop calling Channel3 and show
-    owned + marketplace results only, with a "shop results paused" note
+- **No usage limits for now (owner decision 2026-11-11).** No per-user caps and no automatic stop. Calls past the free
+  1,000/month are billed at $0.007 each. Instead:
+  - the heartbeat warns at 70 % and 100 % of the free credits and shows projected month-end usage and cost
+  - limits can be switched on later via config (per-user daily/monthly caps, global stop) without a code change
+- Savings built into the Edge Function (these save money without limiting users):
   - dedupe garments in one request; only search garments the user didn't match well in their own wardrobe
     (owned match score below threshold). That's the biggest saving and fits "owned first".
 - Every call is logged to `api_usage` and reported in the heartbeat (calls, cache hit rate, projected month-end usage).
@@ -88,7 +89,7 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
   Store crops in a private bucket and use short-lived signed URLs (≤ 10 min).
 - `x-user-id` is the opaque UUID, never email/name. Mention Channel3 as a processor in the privacy policy.
 
-## Open questions for owners
-1. Approve the caching change above (store IDs + display fields; buy links fetched fresh). Needs a line in AGENTS.md.
-2. OK to use Channel3's **used** offers as a tier between our marketplace and new?
-3. Free-tier guard numbers (5/day, 30/month per user) fine for testing?
+## Owner decisions
+- 2026-11-11: store IDs + display fields only; prices and buy links fetched fresh.
+- 2026-11-11: Channel3 second-hand offers are the middle tier.
+- 2026-11-11: no usage limits for now; overage reported in the heartbeat.
