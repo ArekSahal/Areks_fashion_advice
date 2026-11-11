@@ -20,3 +20,4 @@ and say which row it replaces.
 | 2026-11-11 | Keep the warm paper + clay design colours for now | | @ArekSahal |
 | 2026-11-11 | App name is **Cloey** (UI name, URL scheme `cloey://`, bundle id `com.areksahal.cloey`); repo name unchanged | | @ArekSahal |
 | 2026-11-11 | Workflow: live status lives in the Heartbeat issue body (STATUS.md retired), "Needs you" comes first, DECISIONS.md is the single home for decisions, `/approve #PR` lets the agent merge, product brief moved to `docs/PRODUCT.md` | Easier for owners to see what needs them and to find things | @Yolkem23 (by merging this PR) |
+| 2026-11-11 | Owner input: decisions are asked on the issue before any PR; work blocked partway stays a draft PR with the ask on the issue; a PR is "ready" only when merging is left; no stacking on unmerged PRs | Proposal PRs and stacked PRs made it hard to see what was ready vs waiting on a decision | @Yolkem23 (by merging this PR) |
