@@ -7,7 +7,8 @@ M0 done (PR #5 merged). Next: M1 (auth and wardrobe).
 
 ## Done
 - Owner decisions 2026-11-11 (PR #7): Channel3 used offers as middle tier, previews + live share one DB,
-  app English-only for men and women. Recorded in DECISIONS.md, AGENTS.md and the docs.
+  app English-only for men and women, Channel3 stores IDs only, no Channel3 limits for now, keep colours,
+  app renamed to **Cloey**. Recorded in DECISIONS.md, AGENTS.md and the docs.
 - M0 specialist foundations (PR #5, issue #4): design system v1 + tokens and base components (`src/ui/`),
   garment taxonomy + colour/formality/pattern rules (`src/lib/taxonomy.ts`), `docs/styling-engine.md`,
   `docs/architecture.md`, `docs/metrics.md`, `docs/channel3.md`.
@@ -29,8 +30,6 @@ M0 done (PR #5 merged). Next: M1 (auth and wardrobe).
 
 ## Blocked / needs owners
 - Merge PR #7 (touches AGENTS.md).
-- Still open: Channel3 caching change (IDs only, fresh prices/links), per-user Channel3 limits (5/day, 30/month),
-  visual direction (warm paper + clay), app name in the UI.
 
 ## Next up
 - M1: auth + profiles with RLS, GDPR export/delete, then add-item flow with AI tagging.

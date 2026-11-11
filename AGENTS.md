@@ -1,6 +1,6 @@
 # AGENTS.md
 
-An app that helps users document their wardrobe, plan outfits, and get outfit inspiration.
+**Cloey** (repo: Areks_fashion_advice) is an app that helps users document their wardrobe, plan outfits, and get outfit inspiration.
 Owners: Arek (@ArekSahal) and @Yolkem23. Both are equal decision-makers.
 
 ## Your role
@@ -17,8 +17,9 @@ flag risks, and suggest simpler options. Ask before decisions that are expensive
   season); embeddings in pgvector for similarity and matching; background removal on item photos
 - Online shops: Channel3 product data API (https://channel3.ai/docs), with TypeScript SDK and
   MCP. Search products, get images, live prices, availability, merchant URLs, and commission
-  info. Call it only from Supabase Edge Functions (keep the API key server-side). Cache results
-  in `external_products`. The key is stored as the Supabase Edge Function secret `CHANNEL3_API_KEY`
+  info. Call it only from Supabase Edge Functions (keep the API key server-side). Store only Channel3
+  product IDs plus display fields in `external_products`; fetch prices, stock and buy links fresh with the free
+  `GET /v1/products/{id}` when showing them (Channel3 guidance, owner-approved 2026-11-11; see `docs/channel3.md`). The key is stored as the Supabase Edge Function secret `CHANNEL3_API_KEY`
   (read it with `Deno.env.get("CHANNEL3_API_KEY")`).
 - Tests: Vitest/Jest for logic, Playwright or Maestro for key flows
 - CI: GitHub Actions (lint, typecheck, tests, Supabase migration check)
@@ -64,7 +65,8 @@ user data (drop/truncate/delete), take a backup or export first and note it in t
   no faces used for analysis unless the user opts in, private by default.
 - Mobile-first UX: adding an item must take under 30 seconds.
 - Keep costs visible: log AI and Channel3 calls per feature, and cache tags, embeddings and
-  product results. Stay inside the free tier until owners approve a paid plan.
+  Channel3 search results (as ID lists). Stay inside free tiers until owners approve a paid plan; the one exception
+  is Channel3, which owners chose not to limit for now (overage is reported in the heartbeat).
 - Never commit secrets. Use `.env` (gitignored) and Supabase secrets.
 
 ## Test build on GitHub Pages

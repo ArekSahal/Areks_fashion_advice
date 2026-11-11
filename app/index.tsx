@@ -22,7 +22,7 @@ export default function Home() {
 
   return (
     <Screen centered>
-      <Text variant="title">Areks Fashion Advice</Text>
+      <Text variant="title">Cloey</Text>
       <Text muted>Test build (M0). Wardrobe coming next.</Text>
       <Text variant="caption" accessibilityLabel="Supabase status" tone={check === 'error' ? 'danger' : 'default'}>
         {label}

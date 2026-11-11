@@ -41,7 +41,7 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 | `conversations` / `messages` | buyer, seller, listing; sender, body, created_at | only the two participants |
 | `style_profiles` | owner_id, computed_at, summary jsonb | owner only |
 | `inspiration_requests` | id, owner_id, image_path, status, result jsonb | owner only |
-| `external_products` | source ('channel3'), external_id, title, brand, image_url, category, colours[], materials[], embedding, price_hint, currency, availability_hint, best_offer_domain, fetched_at | readable by authenticated users; written only by Edge Functions. _Pending owner decision (PR #5): store no buy URLs and fetch them fresh, per Channel3 guidance (`docs/channel3.md`). Until approved, AGENTS.md wording applies._ |
+| `external_products` | source ('channel3'), external_id, title, brand, image_url, category, colours[], materials[], embedding, price_hint, currency, availability_hint, best_offer_domain, fetched_at | readable by authenticated users; written only by Edge Functions. **No buy URLs stored**: fetched fresh with the free product-detail call (owner-approved 2026-11-11, `docs/channel3.md`) |
 | `external_search_cache` | key_hash, external_ids[], fetched_at | Edge Functions only |
 | `recommendation_feedback` | owner_id, seed_item_id, candidate ref, signal (shown/accepted/liked/disliked/worn), created_at | owner only |
 | `api_usage` | feature, provider, units (credits / tokens / calls), cost_estimate_usd, user_id (nullable), created_at | Edge Functions write; owners read via dashboard. On account delete: `user_id` set to null (aggregate cost kept) |

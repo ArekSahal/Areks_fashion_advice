@@ -82,6 +82,6 @@ Planned for M1 (build them once, here, then reuse): `ItemCard` (photo + 1-line l
   the user seeing the tags at least once.
 - **Shop links:** always labelled "Shop link · we may earn a commission".
 
-## Open questions for owners
-1. Happy with the warm paper + clay direction, or would you prefer something cooler or more editorial (black/white)?
-2. App name shown in the UI: "Areks Fashion Advice" for now, or do you have a product name in mind?
+## Owner decisions
+- 2026-11-11: keep the warm paper + clay colours for now.
+- 2026-11-11: the app is called **Cloey** in the UI (app name, scheme `cloey://`).
