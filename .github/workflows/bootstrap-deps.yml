@@ -2,7 +2,7 @@
 # When package.json changes on an agent/* branch, this job resolves SDK-compatible versions with
 # `expo install`, writes package-lock.json and commits both back to the branch.
 #
-# To add a dependency: add its name to EXPO_DEPS / DEV_DEPS below (or to package.json) and push.
+# To add a dependency: add its name to DEPS / DEV_DEPS below and push.
 name: Bootstrap dependencies
 
 on:
@@ -30,7 +30,7 @@ jobs:
         react react-dom react-native react-native-web @expo/metro-runtime
         react-native-safe-area-context react-native-screens
         @react-native-async-storage/async-storage react-native-url-polyfill
-        @supabase/supabase-js
+        @supabase/supabase-js @expo/vector-icons
       DEV_DEPS: 'typescript @types/react eslint eslint-config-expo vitest'
     steps:
       - uses: actions/checkout@v5
