@@ -9,7 +9,8 @@ M1: auth and wardrobe.
 - M1c-1 (PR #13, issue #12, stacked on #9): `clothing_items` table (owner-only RLS, column grants, taxonomy check
   constraints kept in sync by `src/lib/taxonomySql.test.ts`), private buckets `uploads-quarantine` (write-own, no read)
   and `item-photos` (owner read/delete, server writes). Applied to the live DB; security advisor clean.
-  `account-export` now includes wardrobe items (deployed). `supabase/tests/clothing_items_rls.sql` written but
+  Platform + Fashion review fixes: colours capped at 3 (follow-up migration), GDPR export/delete now page through
+  all files and stop on listing errors (both functions redeployed). `account-export` includes wardrobe items. `supabase/tests/clothing_items_rls.sql` written but
   **not yet run** (the SQL tool asked for a confirmation nobody could answer in the scheduled run).
 - M1a (PR #9, issue #8): `profiles` + RLS (applied; `supabase/tests/profiles_rls.sql` passes), email/password
   sign-up/sign-in, tab shell, profile screen, GDPR export/delete Edge Functions (deployed). CI green, preview deployed.
@@ -35,6 +36,7 @@ M1: auth and wardrobe.
 ## In progress
 - PR #9 (M1a), PR #11 (M1b AI provider proposal) and PR #13 (M1c-1) waiting for owners.
 - Run `supabase/tests/clothing_items_rls.sql` (next interactive run).
+- Open design point for M1c-2: `process-image` creates the item row (it needs the item id for the photo path).
 
 ## Blocked / needs owners
 - Test and merge PR #9 (needs a real sign-up: Supabase's built-in email only reaches project team members).

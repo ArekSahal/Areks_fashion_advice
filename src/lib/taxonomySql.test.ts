@@ -6,7 +6,10 @@ import { CATEGORIES, COLOURS, FITS, MATERIALS, OCCASIONS, PATTERNS, SEASONS } fr
 // The database check constraints on clothing_items must allow exactly the taxonomy values.
 // If you change taxonomy.ts, add a migration that updates the constraints, then point MIGRATION at it.
 const MIGRATION = 'supabase/migrations/20261111064500_clothing_items.sql';
-const sql = readFileSync(join(process.cwd(), MIGRATION), 'utf8');
+// Later migrations that re-create a constraint; their values must match too.
+const COLOURS_MIGRATION = 'supabase/migrations/20261111071500_clothing_items_max_three_colours.sql';
+const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8');
+const sql = read(MIGRATION);
 
 /** Quoted values inside the check constraint of one column (text up to the column's closing paren). */
 function valuesFor(column: string): string[] {
@@ -26,6 +29,12 @@ describe('clothing_items constraints match taxonomy.ts', () => {
     expect(sorted(valuesFor('subcategory'))).toEqual(sorted(pairs));
   });
   it('colours', () => expect(sorted(valuesFor('colours'))).toEqual(sorted(Object.keys(COLOURS))));
+  it('colours (current constraint, max 3)', () => {
+    const latest = read(COLOURS_MIGRATION);
+    expect(latest).toContain('cardinality(colours) <= 3');
+    const values = [...latest.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    expect(sorted(values)).toEqual(sorted(Object.keys(COLOURS)));
+  });
   it('patterns', () => expect(sorted(valuesFor('pattern'))).toEqual(sorted(PATTERNS)));
   it('materials', () => expect(sorted(valuesFor('materials'))).toEqual(sorted(Object.keys(MATERIALS))));
   it('fits', () => expect(sorted(valuesFor('fit'))).toEqual(sorted(FITS)));

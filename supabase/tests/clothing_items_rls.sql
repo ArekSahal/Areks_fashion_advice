@@ -19,6 +19,14 @@ exception when others then
   insert into results values (label, 'blocked (good): ' || sqlstate);
 end $$;
 
+create function pg_temp.expect_ok(label text, stmt text) returns void language plpgsql as $$
+begin
+  execute stmt;
+  insert into results values (label, 'ok (good)');
+exception when others then
+  insert into results values (label, 'FAILED (bad): ' || sqlstate || ' ' || sqlerrm);
+end $$;
+
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}', true);
 
@@ -36,12 +44,13 @@ select pg_temp.expect_error('A sets image_path', $q$update public.clothing_items
 select pg_temp.expect_error('A sets status sold', $q$update public.clothing_items set status = 'sold' where owner_id = auth.uid()$q$);
 select pg_temp.expect_error('bad subcategory for category', $q$insert into public.clothing_items (category, subcategory) values ('top', 'jeans')$q$);
 select pg_temp.expect_error('subcategory without category', $q$insert into public.clothing_items (subcategory) values ('jeans')$q$);
+select pg_temp.expect_error('four colours', $q$insert into public.clothing_items (colours) values ('{black,white,navy,grey}')$q$);
 select pg_temp.expect_error('unknown colour', $q$insert into public.clothing_items (colours) values ('{neon}')$q$);
 select pg_temp.expect_error('null in colours', $q$insert into public.clothing_items (colours) values (array[null]::text[])$q$);
 select pg_temp.expect_error('formality 6', $q$insert into public.clothing_items (formality) values (6)$q$);
 select pg_temp.expect_error('A uploads to B folder', $q$insert into storage.objects (bucket_id, name) values ('uploads-quarantine', '00000000-0000-4000-8000-0000000000b2/x.jpg')$q$);
 select pg_temp.expect_error('A writes item-photos directly', $q$insert into storage.objects (bucket_id, name) values ('item-photos', '00000000-0000-4000-8000-0000000000a1/i/clean.webp')$q$);
-insert into storage.objects (bucket_id, name) values ('uploads-quarantine', '00000000-0000-4000-8000-0000000000a1/u1.jpg');
+select pg_temp.expect_ok('A uploads own quarantine (insert ... returning, like supabase-js)', $q$insert into storage.objects (bucket_id, name) values ('uploads-quarantine', '00000000-0000-4000-8000-0000000000a1/u1.jpg') returning id$q$);
 insert into results select 'A uploads own quarantine, cannot read it back (expect 0)', count(*)::text from storage.objects where bucket_id = 'uploads-quarantine';
 
 set local role anon;
