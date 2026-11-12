@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Image, Platform, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { Image, Platform, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { addItemFromPhoto } from '@/lib/items';
 import type { PreparedPhoto } from '@/lib/photo';
@@ -9,6 +9,7 @@ import { preparePhoto } from '@/lib/preparePhoto';
 import { Button, Screen, Text, useTheme } from '@/ui';
 
 type Step = 'idle' | 'preparing' | 'uploading';
+type Source = 'library' | 'camera' | 'retry';
 
 const STEP_LABEL: Record<Step, string> = {
   idle: '',
@@ -20,7 +21,7 @@ const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'],
 
 /**
  * Add-item flow (M1c): choose a photo (library first, camera second) → resize + re-encode → upload →
- * process-image → wardrobe. Tag confirmation is added in a later step.
+ * process-image → wardrobe. Confirming AI tags is the next step (separate screen).
  * Choosing from the library never asks for camera access (issue #20).
  */
 export default function Add() {
@@ -28,42 +29,79 @@ export default function Add() {
   const { session } = useAuth();
   const userId = session?.user.id;
   const [step, setStep] = useState<Step>('idle');
+  const [source, setSource] = useState<Source | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // A photo that was prepared but failed to upload, so "Try again" doesn't need a new pick.
+  const [pending, setPending] = useState<PreparedPhoto | null>(null);
+  const busyRef = useRef(false);
   const busy = step !== 'idle';
 
-  async function handle(result: ImagePicker.ImagePickerResult) {
+  // Coming back to the tab starts fresh (no stale error from an earlier attempt).
+  useFocusEffect(
+    useCallback(() => {
+      if (busyRef.current) return;
+      setMessage(null);
+      setPending(null);
+      setPreview(null);
+    }, []),
+  );
+
+  function finish(next: Step = 'idle') {
+    busyRef.current = next !== 'idle';
+    setStep(next);
+    if (next === 'idle') setSource(null);
+  }
+
+  async function upload(photo: PreparedPhoto) {
+    if (!userId) {
+      setMessage('Please sign in again to add items.');
+      return;
+    }
+    finish('uploading');
+    try {
+      await addItemFromPhoto(userId, photo);
+      setPending(null);
+      setPreview(null);
+      finish();
+      router.navigate('/');
+    } catch {
+      setPending(photo);
+      finish();
+      setMessage('We couldn’t add that photo. Check your connection and try again.');
+    }
+  }
+
+  async function handle(result: ImagePicker.ImagePickerResult, from: Source) {
     const asset = result.canceled ? undefined : result.assets[0];
-    if (!asset || !userId) return;
+    if (!asset) return;
+    if (!userId) {
+      setMessage('Please sign in again to add items.');
+      return;
+    }
     setMessage(null);
+    setPending(null);
     setPreview(asset.uri);
-    setStep('preparing');
+    setSource(from);
+    finish('preparing');
     let photo: PreparedPhoto;
     try {
       photo = await preparePhoto(asset);
     } catch {
-      setStep('idle');
+      finish();
       setMessage('We couldn’t read that photo. Try a different one.');
       return;
     }
-    setStep('uploading');
-    try {
-      await addItemFromPhoto(userId, photo);
-      setStep('idle');
-      setPreview(null);
-      router.navigate('/');
-    } catch {
-      setStep('idle');
-      setMessage('We couldn’t add that photo. Check your connection and try again.');
-    }
+    await upload(photo);
   }
 
   async function chooseFromLibrary() {
     // The system photo picker (and the browser file chooser) needs no permission prompt.
     // On web, launch straight from the tap so the browser opens the file chooser.
     try {
-      await handle(await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS));
+      await handle(await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS), 'library');
     } catch {
+      finish();
       setMessage('We couldn’t open your photos. Please try again.');
     }
   }
@@ -78,10 +116,18 @@ export default function Add() {
         }
       }
       // On web this opens the file chooser with the camera offered (capture input); no permission prompt from us.
-      await handle(await ImagePicker.launchCameraAsync(PICKER_OPTIONS));
+      await handle(await ImagePicker.launchCameraAsync(PICKER_OPTIONS), 'camera');
     } catch {
+      finish();
       setMessage('We couldn’t open the camera. You can still choose a photo from your library.');
     }
+  }
+
+  function retry() {
+    if (!pending) return;
+    setMessage(null);
+    setSource('retry');
+    upload(pending);
   }
 
   return (
@@ -110,12 +156,9 @@ export default function Add() {
         </View>
       ) : null}
 
-      {busy ? (
-        <View style={{ alignItems: 'center', gap: t.space.sm }} accessibilityLiveRegion="polite">
-          <ActivityIndicator color={t.colours.accent} />
-          <Text muted>{STEP_LABEL[step]}</Text>
-        </View>
-      ) : null}
+      <Text muted accessibilityLiveRegion="polite">
+        {STEP_LABEL[step]}
+      </Text>
 
       {message ? (
         <Text tone="danger" accessibilityLiveRegion="polite">
@@ -123,8 +166,23 @@ export default function Add() {
         </Text>
       ) : null}
 
-      <Button label="Choose from library" onPress={chooseFromLibrary} disabled={busy} />
-      <Button label="Take photo" variant="secondary" onPress={takePhoto} disabled={busy} />
+      {pending ? (
+        <Button label="Try again" onPress={retry} disabled={busy} loading={busy && source === 'retry'} />
+      ) : null}
+      <Button
+        label="Choose from library"
+        variant={pending ? 'secondary' : 'primary'}
+        onPress={chooseFromLibrary}
+        disabled={busy}
+        loading={busy && source === 'library'}
+      />
+      <Button
+        label="Take photo"
+        variant="secondary"
+        onPress={takePhoto}
+        disabled={busy}
+        loading={busy && source === 'camera'}
+      />
     </Screen>
   );
 }

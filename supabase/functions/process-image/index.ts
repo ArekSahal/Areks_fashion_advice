@@ -7,6 +7,7 @@
 // Face blur is a later step (before tag-item sends photos to an AI provider).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { ImageFormatError, sanitizeImage, type ImageFormat } from '../_shared/sanitize-image.ts';
+import { logUsage, usageLast24h } from '../_shared/usage.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +26,9 @@ const LIMITS = {
 
 const EXT: Record<ImageFormat, string> = { webp: 'webp', jpeg: 'jpg' };
 const MIME: Record<ImageFormat, string> = { webp: 'image/webp', jpeg: 'image/jpeg' };
+const PHOTOROOM_FEATURE = 'background_removal';
+const PHOTOROOM_DAILY_LIMIT = 50;
+const PHOTOROOM_COST_USD = 0.02;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class RequestError extends Error {
@@ -61,14 +65,36 @@ async function download(admin: Admin, path: string, limit: { maxBytes: number; m
 }
 
 /**
- * Optional background removal with Photoroom (docs/ai-providers.md). Runs only when the PHOTOROOM_API_KEY secret
- * exists; any failure falls back to the photo as taken. Returns a transparent WebP, re-sanitised like any input.
- * TODO(cost logging): log calls per feature once the api_usage table exists (AGENTS.md → Costs).
+ * Optional background removal with Photoroom (docs/ai-providers.md). Runs only when all of these hold:
+ * - the PHOTOROOM_API_KEY secret exists;
+ * - the user turned on "Let AI see faces" (profiles.consent_face_analysis), because faces aren't blurred yet;
+ * - the user is under PHOTOROOM_DAILY_LIMIT calls in the last 24 h, counted in api_usage;
+ * - the call could be logged in api_usage first (so nothing paid goes unlogged or uncapped).
+ * Otherwise, or on any failure, the photo is kept as taken. Returns a transparent WebP, re-sanitised like any input.
  */
-async function removeBackground(photo: Photo): Promise<Photo> {
+async function removeBackground(admin: Admin, userId: string, photo: Photo): Promise<Photo> {
   const key = Deno.env.get('PHOTOROOM_API_KEY');
   if (!key) return photo;
   try {
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('consent_face_analysis')
+      .eq('id', userId)
+      .maybeSingle();
+    if (profileError || profile?.consent_face_analysis !== true) return photo;
+
+    const used = await usageLast24h(admin, userId, PHOTOROOM_FEATURE);
+    if (used === null || used >= PHOTOROOM_DAILY_LIMIT) return photo;
+    const logged = await logUsage(admin, {
+      user_id: userId,
+      feature: PHOTOROOM_FEATURE,
+      provider: 'photoroom',
+      model: 'segment-v1',
+      units: 1,
+      est_cost_usd: PHOTOROOM_COST_USD,
+    });
+    if (!logged) return photo;
+
     const form = new FormData();
     form.append('image_file', new Blob([photo.bytes], { type: MIME[photo.format] }), `photo.${EXT[photo.format]}`);
     form.append('format', 'webp');
@@ -117,7 +143,7 @@ Deno.serve(async (req) => {
 
   try {
     const [clean, thumb] = await Promise.all([
-      download(admin, source.clean, LIMITS.clean).then(removeBackground),
+      download(admin, source.clean, LIMITS.clean).then((photo) => removeBackground(admin, userId, photo)),
       download(admin, source.thumb, LIMITS.thumb),
     ]);
 

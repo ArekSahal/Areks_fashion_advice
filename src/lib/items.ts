@@ -7,6 +7,8 @@ export type WardrobeItem = {
   image_path: string | null;
   category: string | null;
   subcategory: string | null;
+  /** Null until the user confirmed the tags; until then category/subcategory are only AI suggestions. */
+  tags_confirmed_at: string | null;
   created_at: string;
 };
 
@@ -16,7 +18,7 @@ const SIGNED_URL_SECONDS = 60 * 60;
 export async function listMyItems(): Promise<WardrobeItem[]> {
   const { data, error } = await supabase
     .from('clothing_items')
-    .select('id, thumb_path, image_path, category, subcategory, created_at')
+    .select('id, thumb_path, image_path, category, subcategory, tags_confirmed_at, created_at')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) throw error;

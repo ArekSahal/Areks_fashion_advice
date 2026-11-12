@@ -67,7 +67,8 @@ with `{ upload_id, format }`. The function builds the paths from the caller's id
 format from the bytes, rejects anything that isn't a still WebP/JPEG within the size limits (≤ 5 MB / 2048 px clean,
 ≤ 512 KB / 640 px thumb), strips metadata again (`supabase/functions/_shared/sanitize-image.ts`: allowlist of image
 chunks/markers, tested in `src/lib/sanitizeImage.test.ts`), optionally removes the background (only if the
-`PHOTOROOM_API_KEY` secret exists), writes `item-photos/{user_id}/{item_id}/clean.*` + `thumb.*`, inserts the
+`PHOTOROOM_API_KEY` secret exists, the user turned on "Let AI see faces" since faces aren't blurred yet, and they are
+under 50 calls/24 h; each call is logged in `api_usage` first and skipped if it can't be logged), writes `item-photos/{user_id}/{item_id}/clean.*` + `thumb.*`, inserts the
 `clothing_items` row and deletes the quarantine copies (also when processing fails). No file with metadata is ever
 readable by clients or kept.
 

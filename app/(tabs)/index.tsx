@@ -1,15 +1,17 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 import { listMyItems, signedPhotoUrls, type WardrobeItem } from '@/lib/items';
 import { gridColumns } from '@/lib/photo';
-import { Button, EmptyState, ItemCard, PhotoGrid, Screen, Text } from '@/ui';
+import { EmptyState, ItemCard, PhotoGrid, Screen, Text } from '@/ui';
 
 type Loaded = { items: WardrobeItem[]; urls: Record<string, string> };
 
 const SKELETON = ['a', 'b', 'c', 'd'];
 
+/** Only tags the user confirmed are shown; AI suggestions stay hidden until the confirm-tags step. */
 function label(item: WardrobeItem): string | undefined {
+  if (!item.tags_confirmed_at) return undefined;
   const raw = item.subcategory ?? item.category;
   if (!raw) return undefined;
   const text = raw.replace(/_/g, ' ');
@@ -50,14 +52,17 @@ export default function Wardrobe() {
 
   if (failed && !data) {
     return (
-      <Screen centered>
-        <Text>We couldn’t load your wardrobe.</Text>
-        <Button
-          label="Try again"
-          variant="secondary"
-          onPress={() => {
-            setFailed(false);
-            load(() => true);
+      <Screen>
+        <Text variant="title">Wardrobe</Text>
+        <EmptyState
+          title="We couldn’t load your wardrobe"
+          body="Check your connection and try again."
+          action={{
+            label: 'Try again',
+            onPress: () => {
+              setFailed(false);
+              load(() => true);
+            },
           }}
         />
       </Screen>
@@ -94,7 +99,9 @@ export default function Wardrobe() {
           />
         </>
       ) : (
-        <PhotoGrid items={SKELETON} columns={columns} keyOf={(k) => k} renderItem={() => <ItemCard uri={null} />} />
+        <View accessible accessibilityLabel="Loading your wardrobe">
+          <PhotoGrid items={SKELETON} columns={columns} keyOf={(k) => k} renderItem={() => <ItemCard uri={null} />} />
+        </View>
       )}
     </Screen>
   );
