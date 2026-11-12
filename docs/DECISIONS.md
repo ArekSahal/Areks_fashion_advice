@@ -1,5 +1,9 @@
 # Decision log
 
+This is the one place where owner decisions are recorded. Other docs describe the current rules and
+link here instead of repeating dates or reasons. To change a decision, add a new row (don't edit old ones)
+and say which row it replaces.
+
 | Date | Decision | Reason | Approved by |
 |------|----------|--------|-------------|
 | 2026-11-10 | Supabase as backend | Owner requirement | @ArekSahal |
@@ -15,3 +19,6 @@
 | 2026-11-11 | No Channel3 usage limits for now (no per-user caps, no auto-stop); overage reported in the heartbeat | Don't restrict early users; overage is cheap ($0.007/call) | @ArekSahal |
 | 2026-11-11 | Keep the warm paper + clay design colours for now | | @ArekSahal |
 | 2026-11-11 | App name is **Cloey** (UI name, URL scheme `cloey://`, bundle id `com.areksahal.cloey`); repo name unchanged | | @ArekSahal |
+| 2026-11-11 | Workflow: live status lives in the Heartbeat issue body (STATUS.md retired), "Needs you" comes first, DECISIONS.md is the single home for decisions, `/approve #PR` lets the agent merge, product brief moved to `docs/PRODUCT.md` | Easier for owners to see what needs them and to find things | @Yolkem23 (by merging this PR) |
+| 2026-11-11 | Owner input: decisions are asked on the issue before any PR; work blocked partway stays a draft PR with the ask on the issue; a PR is "ready" only when merging is left; no stacking on unmerged PRs | Proposal PRs and stacked PRs made it hard to see what was ready vs waiting on a decision | @Yolkem23 (by merging this PR) |
+| 2026-11-12 | AI providers: Gemini 3.5 Flash-Lite (tagging) + Gemini Embedding 2, 768 dims (matching) on Google Vertex AI, EU region; background removal and face blur on the device, Photoroom as the web/server fallback; AI budget cap $20/month with an alert at $10 | One EU vendor for tagging and embeddings, ≈ $7–10/month at 5,000 photos; web test build needs a server fallback (`docs/ai-providers.md`) | @ArekSahal |
