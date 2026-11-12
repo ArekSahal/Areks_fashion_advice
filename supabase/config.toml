@@ -29,3 +29,10 @@ enable_signup = true
 [auth.email]
 enable_signup = true
 enable_confirmations = true
+
+# Edge Functions authenticate the caller themselves (auth.getUser), so the gateway JWT check is off.
+[functions.account-export]
+verify_jwt = false
+
+[functions.account-delete]
+verify_jwt = false

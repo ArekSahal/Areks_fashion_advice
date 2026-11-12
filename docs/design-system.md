@@ -67,11 +67,15 @@ Item and outfit detail screens push on top of the current tab. Camera and tag co
 Available now in `@/ui`:
 - `Screen` (background, safe areas, padding; `scroll` and `centered` options)
 - `Text` (`variant`, `muted`, `tone`)
-- `Button` (`primary` / `secondary`, `loading`, `disabled`)
+- `Button` (`primary` / `secondary` / `danger` for confirming destructive actions, `loading`, `disabled`)
+- `TextField` (label, hint, error; focus ring in accent)
+- `Chip`, `ChipGroup` (single choice; tap again to clear)
+- `SwitchRow` (setting with description)
+- `Section` (surface card with optional heading)
 - `EmptyState` (title, body, one action)
 
 Planned for M1 (build them once, here, then reuse): `ItemCard` (photo + 1-line label), `PhotoGrid` (2 columns on phones,
-4+ on wide web), `Chip` / `ChipGroup` (filters, tags), `ColourSwatch`, `TextField`, `Sheet` (bottom sheet),
+4+ on wide web), `ColourSwatch`, `Sheet` (bottom sheet),
 `TagConfirmRow` (AI tag with "check this" state), `Toast` (errors and confirmations).
 
 ## Patterns

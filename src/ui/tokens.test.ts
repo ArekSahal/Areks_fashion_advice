@@ -24,6 +24,7 @@ const PAIRS = [
   ['textMuted', 'surfaceSunken'],
   ['accent', 'background'],
   ['onAccent', 'accent'],
+  ['onAccent', 'danger'],
   ['danger', 'background'],
   ['success', 'background'],
 ] as const;

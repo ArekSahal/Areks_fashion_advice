@@ -1,5 +1,16 @@
-import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text as RNText, View, type TextProps } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text as RNText,
+  TextInput,
+  View,
+  type TextInputProps,
+  type TextProps,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TypeVariant } from './tokens';
 import { useTheme } from './theme';
@@ -36,15 +47,16 @@ export function Screen({ children, scroll = false, centered = false }: { childre
 type ButtonProps = {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
   loading?: boolean;
 };
 
-/** Primary = the one main action on a screen. Secondary = everything else. */
+/** Primary = the one main action on a screen. Secondary = everything else. Danger = confirming a destructive action. */
 export function Button({ label, onPress, variant = 'primary', disabled, loading }: ButtonProps) {
   const t = useTheme();
-  const primary = variant === 'primary';
+  const filled = variant !== 'secondary';
+  const fill = variant === 'danger' ? t.colours.danger : t.colours.accent;
   return (
     <Pressable
       accessibilityRole="button"
@@ -58,20 +70,178 @@ export function Button({ label, onPress, variant = 'primary', disabled, loading 
           minHeight: t.touchTarget,
           borderRadius: t.radius.pill,
           paddingHorizontal: t.space.xl,
-          backgroundColor: primary ? t.colours.accent : 'transparent',
-          borderColor: primary ? t.colours.accent : t.colours.borderStrong,
+          backgroundColor: filled ? fill : 'transparent',
+          borderColor: filled ? fill : t.colours.borderStrong,
           opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
         },
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? t.colours.onAccent : t.colours.text} />
+        <ActivityIndicator color={filled ? t.colours.onAccent : t.colours.text} />
       ) : (
-        <Text variant="label" style={{ color: primary ? t.colours.onAccent : t.colours.text }}>
+        <Text variant="label" style={{ color: filled ? t.colours.onAccent : t.colours.text }}>
           {label}
         </Text>
       )}
     </Pressable>
+  );
+}
+
+type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
+  label: string;
+  error?: string | null;
+  hint?: string;
+};
+
+/** Labelled text input with an optional hint or error underneath. */
+export function TextField({ label, error, hint, ...input }: TextFieldProps) {
+  const t = useTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={{ gap: t.space.xs, alignSelf: 'stretch' }}>
+      <Text variant="label">{label}</Text>
+      <TextInput
+        {...input}
+        accessibilityLabel={label}
+        onFocus={(e) => {
+          setFocused(true);
+          input.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          input.onBlur?.(e);
+        }}
+        placeholderTextColor={t.colours.textMuted}
+        style={[
+          t.typography.body,
+          {
+            minHeight: t.touchTarget,
+            paddingHorizontal: t.space.md,
+            borderRadius: t.radius.md,
+            borderWidth: focused ? 2 : 1,
+            borderColor: error ? t.colours.danger : focused ? t.colours.accent : t.colours.borderStrong,
+            backgroundColor: t.colours.surfaceSunken,
+            color: t.colours.text,
+          },
+        ]}
+      />
+      {error ? (
+        <Text variant="caption" tone="danger" accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : hint ? (
+        <Text variant="caption" muted>
+          {hint}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** Selectable pill for filters, tags and single choices. */
+export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      hitSlop={(t.touchTarget - 36) / 2}
+      style={{
+        minHeight: 36,
+        justifyContent: 'center',
+        paddingHorizontal: t.space.md,
+        borderRadius: t.radius.pill,
+        borderWidth: 1,
+        borderColor: selected ? t.colours.accent : t.colours.borderStrong,
+        backgroundColor: selected ? t.colours.accent : 'transparent',
+      }}
+    >
+      <Text variant="label" style={{ color: selected ? t.colours.onAccent : t.colours.text }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/** Single-choice row of chips. `value` null = nothing selected; tapping the selected chip clears it. */
+export function ChipGroup<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T | null;
+  onChange: (value: T | null) => void;
+}) {
+  const t = useTheme();
+  return (
+    <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.space.sm }}>
+      {options.map((o) => (
+        <Chip
+          key={o.value}
+          label={o.label}
+          selected={o.value === value}
+          onPress={() => onChange(o.value === value ? null : o.value)}
+        />
+      ))}
+    </View>
+  );
+}
+
+/** A setting row with a label, optional description and an on/off switch. */
+export function SwitchRow({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space.md, minHeight: t.touchTarget }}>
+      <View style={{ flex: 1, gap: t.space.xxs }}>
+        <Text variant="label">{label}</Text>
+        {description ? (
+          <Text variant="caption" muted>
+            {description}
+          </Text>
+        ) : null}
+      </View>
+      <Switch
+        accessibilityLabel={label}
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: t.colours.borderStrong, true: t.colours.accent }}
+        thumbColor={t.colours.surface}
+      />
+    </View>
+  );
+}
+
+/** Groups related content on a surface card. */
+export function Section({ title, children }: { title?: string; children: ReactNode }) {
+  const t = useTheme();
+  return (
+    <View
+      style={{
+        alignSelf: 'stretch',
+        gap: t.space.md,
+        padding: t.space.lg,
+        borderRadius: t.radius.md,
+        backgroundColor: t.colours.surface,
+        borderWidth: 1,
+        borderColor: t.colours.border,
+      }}
+    >
+      {title ? <Text variant="heading">{title}</Text> : null}
+      {children}
+    </View>
   );
 }
 
