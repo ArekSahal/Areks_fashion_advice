@@ -14,16 +14,20 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
 
+// Lists every file under prefix (recursively, all pages). Throws on errors so nothing is silently skipped.
 async function listAll(admin: ReturnType<typeof createClient>, bucket: string, prefix: string): Promise<string[]> {
   const out: string[] = [];
-  const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: 1000 });
-  if (error || !data) return out;
-  for (const entry of data) {
-    const path = `${prefix}/${entry.name}`;
-    if (entry.id === null) out.push(...(await listAll(admin, bucket, path))); // folder
-    else out.push(path);
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: PAGE, offset });
+    if (error) throw error;
+    for (const entry of data ?? []) {
+      const path = `${prefix}/${entry.name}`;
+      if (entry.id === null) out.push(...(await listAll(admin, bucket, path))); // folder
+      else out.push(path);
+    }
+    if (!data || data.length < PAGE) return out;
   }
-  return out;
 }
 
 Deno.serve(async (req) => {
