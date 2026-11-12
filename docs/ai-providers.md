@@ -1,6 +1,6 @@
-# AI providers: proposal
+# AI providers
 
-_Owners: Platform + Fashion agents. 2026-11-11. Status: **waiting for owner decision** (issue #10).
+_Owners: Platform + Fashion agents. 2026-11-11. Status: **approved** as recommended below, with Photoroom for web (see `docs/DECISIONS.md`).
 Prices checked on vendor pages on 2026-11-11; "unverified" = couldn't confirm._
 
 Assumed volume: ~50 items per new user × ~100 users ≈ **5,000 images/month** at first.
