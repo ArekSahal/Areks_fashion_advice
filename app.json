@@ -17,7 +17,17 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cloey uses your photo library so you can add clothes to your wardrobe.",
+          "cameraPermission": "Cloey uses the camera so you can photograph clothes for your wardrobe.",
+          "microphonePermission": false
+        }
+      ]
+    ],
     "experiments": {
       "baseUrl": "/Areks_fashion_advice",
       "typedRoutes": true

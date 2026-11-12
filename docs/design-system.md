@@ -57,7 +57,7 @@ System font (San Francisco / Roboto / system-ui on web): fast, native, scales wi
 Bottom tabs, max 4:
 1. **Wardrobe** (grid of items, filters)
 2. **Diary** (today's outfit + calendar)
-3. **Add** (centre, opens camera straight away; target: item added in < 30 s)
+3. **Add** ("Choose from library" first, "Take photo" second; library never asks for camera access; target: item added in < 30 s)
 4. **Profile** (style analysis, settings, privacy)
 
 Marketplace and "recreate an outfit" enter as screens inside Wardrobe/Profile until they earn their own tab.
@@ -73,9 +73,10 @@ Available now in `@/ui`:
 - `SwitchRow` (setting with description)
 - `Section` (surface card with optional heading)
 - `EmptyState` (title, body, one action)
+- `ItemCard` (4:5 photo well + optional 1-line label; `uri={null}` is the loading skeleton)
+- `PhotoGrid` (equal columns; use `gridColumns(width)` from `src/lib/photo.ts`: 2 on phones, up to 5 on wide web)
 
-Planned for M1 (build them once, here, then reuse): `ItemCard` (photo + 1-line label), `PhotoGrid` (2 columns on phones,
-4+ on wide web), `ColourSwatch`, `Sheet` (bottom sheet),
+Planned for M1 (build them once, here, then reuse): `ColourSwatch`, `Sheet` (bottom sheet),
 `TagConfirmRow` (AI tag with "check this" state), `Toast` (errors and confirmations).
 
 ## Patterns

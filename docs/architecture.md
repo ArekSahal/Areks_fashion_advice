@@ -53,15 +53,23 @@ enums as `text` + check constraints mirroring `src/lib/taxonomy.ts`.
 ## Storage
 | Bucket | Path | Access |
 |---|---|---|
-| `item-photos` | `{user_id}/{item_id}/{original|clean|thumb}.webp` | private; owner via RLS on `storage.objects` |
+| `item-photos` | `{user_id}/{item_id}/{clean|thumb}.webp` (`.jpg` for photos from Safari) | private; owner via RLS on `storage.objects` |
 | `outfit-photos` | `{user_id}/{outfit_id}.webp` | private |
 | `inspiration` | `{user_id}/{request_id}/…` | private; crops shared with Channel3 only via ≤ 10-min signed URLs |
 | `listing-photos` | `{user_id}/{listing_id}/…` | signed-in read while listing active (copies, not the private originals) |
 | `uploads-quarantine` | `{user_id}/{upload_id}` | write-own only, **no client read**; Edge Function strips EXIF + moves the file, then deletes it |
 
 **EXIF (incl. GPS):** photos are re-encoded on the device before upload (drops EXIF), and every upload lands in
-`uploads-quarantine` first. `process-image` strips metadata again, resizes (max 1600 px, WebP) and writes the clean file
-to the real bucket, then deletes the quarantine copy. No file with metadata is ever readable by clients or kept.
+`uploads-quarantine` first. The app resizes (max 1600 px, plus a 400 px thumbnail) and encodes WebP (native:
+expo-image-manipulator; web: canvas). Safari can't encode WebP in a canvas, so the web app sends JPEG there.
+The app uploads `{user_id}/{upload_id}.{webp|jpg}` and `{user_id}/{upload_id}.thumb.{webp|jpg}` and calls `process-image`
+with `{ upload_id, format }`. The function builds the paths from the caller's id (never from client paths), sniffs the
+format from the bytes, rejects anything that isn't a still WebP/JPEG within the size limits (≤ 5 MB / 2048 px clean,
+≤ 512 KB / 640 px thumb), strips metadata again (`supabase/functions/_shared/sanitize-image.ts`: allowlist of image
+chunks/markers, tested in `src/lib/sanitizeImage.test.ts`), optionally removes the background (only if the
+`PHOTOROOM_API_KEY` secret exists), writes `item-photos/{user_id}/{item_id}/clean.*` + `thumb.*`, inserts the
+`clothing_items` row and deletes the quarantine copies (also when processing fails). No file with metadata is ever
+readable by clients or kept.
 
 **Faces:** before any photo goes to an AI provider (tagging, outfit analysis, style analysis, garment detection),
 `process-image` detects faces and blurs them unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits
