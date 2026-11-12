@@ -10,6 +10,13 @@ const env = readPublicEnv({
   EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
 });
 
+/**
+ * The page URL on web as it was before Supabase reads and clears the auth hash from it.
+ * Used to tell a password-reset link apart from a normal sign-in.
+ */
+export const initialWebUrl: string | null =
+  Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.href : null;
+
 export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
   auth: {
     // On web, supabase-js uses localStorage by default.

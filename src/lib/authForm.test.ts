@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { friendlyAuthError, validateDisplayName, validateEmail, validatePassword } from './authForm';
+import {
+  friendlyAuthError,
+  resetRequestError,
+  validateDisplayName,
+  validateEmail,
+  validateNewPassword,
+  validatePassword,
+} from './authForm';
 
 describe('validateEmail', () => {
   it('accepts normal addresses, trimming spaces', () => {
@@ -37,9 +44,37 @@ describe('friendlyAuthError', () => {
     expect(friendlyAuthError({ code: 'user_already_exists' })).toMatch(/already an account/);
     expect(friendlyAuthError({ status: 429 })).toMatch(/Too many/);
   });
+  it('explains reusing the old password', () => {
+    expect(friendlyAuthError({ code: 'same_password' })).toMatch(/haven’t used/);
+  });
   it('never leaks raw messages', () => {
     expect(friendlyAuthError({ code: 'x', message: 'pg error 23505 at line 3' })).toBe(
       'Something went wrong. Please try again.',
     );
+  });
+});
+
+describe('validateNewPassword', () => {
+  it('uses the sign-up length rule', () => {
+    expect(validateNewPassword('short', 'short').password).toMatch(/8/);
+    expect(validateNewPassword('', '').password).toMatch(/Enter/);
+  });
+  it('requires a matching confirmation', () => {
+    expect(validateNewPassword('longenough', '')).toEqual({ password: null, confirm: 'Type the password again.' });
+    expect(validateNewPassword('longenough', 'longenougH').confirm).toMatch(/don’t match/);
+    expect(validateNewPassword('longenough', 'longenough')).toEqual({ password: null, confirm: null });
+  });
+});
+
+describe('resetRequestError', () => {
+  it('stays neutral for success and account-related errors (no enumeration)', () => {
+    expect(resetRequestError(null)).toBe(null);
+    expect(resetRequestError({ code: 'user_not_found', status: 404, message: 'User not found' })).toBe(null);
+    expect(resetRequestError({ code: 'email_address_invalid', status: 400 })).toBe(null);
+  });
+  it('shows rate-limit, network and server problems generically', () => {
+    expect(resetRequestError({ code: 'over_email_send_rate_limit', status: 429 })).toMatch(/Too many/);
+    expect(resetRequestError({ message: 'Failed to fetch', status: 0 })).toMatch(/connection/);
+    expect(resetRequestError({ message: 'boom', status: 500 })).toBe('Something went wrong. Please try again.');
   });
 });

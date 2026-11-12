@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { useTheme } from '@/ui';
 
 function RootNavigator() {
-  const { session, loading } = useAuth();
+  const { session, loading, recovering } = useAuth();
   const t = useTheme();
 
   if (loading) {
@@ -18,8 +18,12 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.colours.background } }}>
-      <Stack.Protected guard={!!session}>
+      <Stack.Protected guard={!!session && !recovering}>
         <Stack.Screen name="(tabs)" />
+      </Stack.Protected>
+      {/* Signed in through a password-reset link: set a new password before entering the app. */}
+      <Stack.Protected guard={!!session && recovering}>
+        <Stack.Screen name="reset-password" />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="(auth)" />
