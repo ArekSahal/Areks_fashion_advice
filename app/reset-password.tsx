@@ -26,11 +26,15 @@ export default function ResetPassword() {
 
     setBusy(true);
     const { error } = await supabase.auth.updateUser({ password });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       setErrors({ form: friendlyAuthError(error) });
       return;
     }
+    // Someone who had the old password may still be signed in elsewhere: end those sessions.
+    // Best effort; the new password is already saved, so a failure here doesn't block the user.
+    await supabase.auth.signOut({ scope: 'others' }).catch(() => {});
+    setBusy(false);
     // Saved: the root layout now lets the user into the app.
     finishRecovery();
   }

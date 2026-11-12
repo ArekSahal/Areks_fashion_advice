@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { RESET_SENT_MESSAGE, resetRequestError, validateEmail } from '@/lib/authForm';
 import { authRedirectUrl } from '@/lib/redirect';
@@ -38,10 +38,8 @@ export default function ForgotPassword() {
         <EmptyState
           title="Check your inbox"
           body={`${RESET_SENT_MESSAGE} Open it on this device to choose a new password.`}
+          action={{ label: 'Back to sign in', variant: 'secondary', onPress: () => router.replace('/sign-in') }}
         />
-        <Link href="/sign-in" replace>
-          <Text variant="label">Back to sign in</Text>
-        </Link>
       </Screen>
     );
   }
@@ -76,7 +74,7 @@ export default function ForgotPassword() {
 
       <Button label="Send reset link" onPress={submit} loading={busy} />
 
-      <Link href="/sign-in" replace style={{ marginTop: t.space.md }}>
+      <Link href="/sign-in" replace accessibilityLabel="Remembered it? Sign in" style={{ marginTop: t.space.md }}>
         <Text variant="label" muted>
           Remembered it? <Text variant="label">Sign in</Text>
         </Text>

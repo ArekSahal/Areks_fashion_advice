@@ -1,5 +1,6 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
+import { Pressable } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { friendlyAuthError, validateEmail, validatePassword } from '@/lib/authForm';
 import { supabase } from '@/lib/supabase';
@@ -56,15 +57,16 @@ export default function SignIn() {
         onSubmitEditing={submit}
       />
 
-      <Link
-        href="/forgot-password"
-        accessibilityLabel="Forgot password?"
-        style={{ alignSelf: 'flex-end', paddingVertical: t.space.sm }}
-        onPress={clearLinkError}
-      >
-        <Text variant="label" muted>
-          Forgot password?
-        </Text>
+      <Link href="/forgot-password" asChild onPress={clearLinkError}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Forgot password?"
+          style={{ alignSelf: 'flex-end', minHeight: t.touchTarget, justifyContent: 'center', paddingHorizontal: t.space.sm }}
+        >
+          <Text variant="label" muted>
+            Forgot password?
+          </Text>
+        </Pressable>
       </Link>
 
       {errors.form || linkError ? (
@@ -75,7 +77,7 @@ export default function SignIn() {
 
       <Button label="Sign in" onPress={submit} loading={busy} />
 
-      <Link href="/sign-up" replace style={{ marginTop: t.space.md }}>
+      <Link href="/sign-up" replace accessibilityLabel="New to Cloey? Create an account" style={{ marginTop: t.space.md }}>
         <Text variant="label" muted>
           New to Cloey? <Text variant="label">Create an account</Text>
         </Text>

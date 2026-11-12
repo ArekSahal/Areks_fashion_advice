@@ -2,6 +2,7 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
+import { authLinkErrorMessage, isRecoveryLink, parseAuthLink } from './authLink';
 import { readPublicEnv } from './env';
 
 // EXPO_PUBLIC_* values must be referenced statically so Metro inlines them at build time.
@@ -11,11 +12,23 @@ const env = readPublicEnv({
 });
 
 /**
- * The page URL on web as it was before Supabase reads and clears the auth hash from it.
- * Used to tell a password-reset link apart from a normal sign-in.
+ * What the page URL said on web before Supabase reads and clears the auth hash: whether it was a
+ * password-reset link, and the plain-English error if the link failed. Tokens are not kept here.
  */
-export const initialWebUrl: string | null =
-  Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.href : null;
+export const initialWebLink: { isRecovery: boolean; errorMessage: string | null } = (() => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return { isRecovery: false, errorMessage: null };
+  const link = parseAuthLink(window.location.href);
+  const errorMessage = authLinkErrorMessage(link);
+  if (errorMessage) {
+    // A failed link carries only error text: drop it from the address bar so a reload doesn't repeat it.
+    try {
+      window.history.replaceState(window.history.state, '', window.location.pathname);
+    } catch {
+      // Not fatal.
+    }
+  }
+  return { isRecovery: isRecoveryLink(link), errorMessage };
+})();
 
 export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
   auth: {
@@ -24,5 +37,7 @@ export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: Platform.OS === 'web',
+    // supabase-js default, stated so the link handling in auth.tsx (tokens in the URL hash) stays true.
+    flowType: 'implicit',
   },
 });

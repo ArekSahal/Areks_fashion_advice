@@ -21,7 +21,7 @@ file_size_limit = "10MiB"
 [auth]
 site_url = "http://localhost:8081"
 additional_redirect_urls = [
-  "cloey://",
+  "cloey://**",
   "https://areksahal.github.io/Areks_fashion_advice/",
 ]
 enable_signup = true
