@@ -25,7 +25,7 @@ import {
   type Season,
   type Subcategory,
   categoryOf,
-} from './taxonomy';
+} from './taxonomy.ts';
 
 /** Bump when the prompt or schema changes, so tag-correction metrics can be compared per version. */
 export const TAGGING_SCHEMA_VERSION = 1;

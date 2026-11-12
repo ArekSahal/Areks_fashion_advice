@@ -1,7 +1,7 @@
 // GDPR delete: permanently removes the signed-in user's account and everything they own.
 // Order: storage files under {user_id}/ in every bucket → auth user (rows cascade via owner foreign keys).
-// Rules for shared data (api_usage, messages, listings) are in docs/architecture.md and get added here
-// when those tables exist.
+// ai_usage rows go with the account (user_id → auth.users on delete cascade).
+// Rules for shared data (messages, listings) are in docs/architecture.md and get added here when those tables exist.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const CORS = {
