@@ -1,5 +1,6 @@
 -- RLS, grant and constraint checks for public.clothing_items and the photo buckets.
--- Safe on the shared database: runs in a transaction that is rolled back. Every outcome should be "good"
+-- Safe on the shared database: runs in a transaction that is rolled back. Paste the whole file into the Supabase
+-- SQL Editor and press Run; the results appear as an error message. Every outcome should be "good"
 -- (or the expected value in the test name).
 begin;
 insert into auth.users (id, instance_id, aud, role, email, raw_user_meta_data, created_at, updated_at)
@@ -61,5 +62,11 @@ reset role;
 insert into results select 'B row untouched (expect white, no brand)', array_to_string(colours, ',') || coalesce(' ' || brand, '') from public.clothing_items where id = '00000000-0000-4000-8000-00000000b0b1';
 delete from auth.users where id = '00000000-0000-4000-8000-0000000000a1';
 insert into results select 'items cascade on user delete (expect 0)', count(*)::text from public.clothing_items where owner_id = '00000000-0000-4000-8000-0000000000a1';
-select * from results;
+-- Show the results as an error on purpose: the error aborts the transaction, so nothing above is kept,
+-- and the Supabase SQL Editor shows the message even though it only displays the last statement.
+do $$ declare r text;
+begin
+  select string_agg(test || ': ' || outcome, E'\n') into r from results;
+  raise exception E'TEST RESULTS (everything rolled back, look for "bad"):\n%', r;
+end $$;
 rollback;
