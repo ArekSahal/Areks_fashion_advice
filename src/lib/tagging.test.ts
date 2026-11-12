@@ -90,9 +90,10 @@ describe('parseTaggingResponse', () => {
 
   it('normalises casing, spaces, hyphens and common synonyms', () => {
     expect(normaliseId(' Off-White ')).toBe('off_white');
-    expect(normaliseId('Gray')).toBe('grey');
-    expect(normaliseId('T-Shirt')).toBe('t_shirt');
-    expect(normaliseId('fall')).toBe('autumn');
+    expect(normaliseId('Gray', 'colour')).toBe('grey');
+    expect(normaliseId('T-Shirt', 'subcategory')).toBe('t_shirt');
+    expect(normaliseId('fall', 'season')).toBe('autumn');
+    expect(normaliseId('denim', 'material')).toBe('denim');
     const r = ok({ ...good, category: 'Top', subcategory: 'Sweater', colours: ['Navy', 'cream'], pattern: 'Plaid' });
     expect(r.tags).toMatchObject({ category: 'top', subcategory: 'knit', colours: ['navy', 'off_white'], pattern: 'check' });
   });
@@ -107,10 +108,29 @@ describe('parseTaggingResponse', () => {
     expect(ok({ ...good, category: null }).tags.category).toBe('outerwear');
   });
 
-  it('drops a subcategory that contradicts the category', () => {
-    const r = ok({ ...good, category: 'top', subcategory: 'jeans' });
-    expect(r.tags).toMatchObject({ category: 'top', subcategory: null });
+  it('trusts the subcategory when it contradicts the category, and flags the category', () => {
+    const r = ok({ ...good, category: 'top', subcategory: 'overshirt' });
+    expect(r.tags).toMatchObject({ category: 'outerwear', subcategory: 'overshirt' });
     expect(r.warnings).toContain('subcategory_mismatch');
+    expect(r.needsCheck).toEqual(['category']);
+  });
+
+  it('keeps "denim" as a material and maps it to denim_blue only as a colour', () => {
+    const r = ok({ ...good, category: 'bottom', subcategory: 'jeans', colours: ['denim'], materials: ['Denim'] });
+    expect(r.tags.colours).toEqual(['denim_blue']);
+    expect(r.tags.materials).toEqual(['denim']);
+  });
+
+  it('a weak category does not wipe out a confident subcategory', () => {
+    const r = ok({ ...good, category: 'top', confidence: { ...sure, category: 0.1 } });
+    expect(r.tags).toMatchObject({ category: 'outerwear', subcategory: 'coat' });
+    expect(r.needsCheck).not.toContain('category');
+  });
+
+  it('never clears a weak season guess (empty would mean all-season), only flags it', () => {
+    const r = ok({ ...good, subcategory: 'parka', seasons: ['winter'], confidence: { ...sure, seasons: 0.1 } });
+    expect(r.tags.seasons).toEqual(['winter']);
+    expect(r.needsCheck).toEqual(['seasons']);
   });
 
   it('accepts formality as a number or numeric string, rejects out-of-range', () => {
@@ -125,8 +145,8 @@ describe('parseTaggingResponse', () => {
     expect(r.tags.materials).toEqual(['wool']); // still prefilled
   });
 
-  it('drops guesses under 0.3 confidence, and the subcategory goes with a dropped category', () => {
-    const r = ok({ ...good, confidence: { ...sure, category: 0.2, fit: 0.1 } });
+  it('drops guesses under 0.3 confidence', () => {
+    const r = ok({ ...good, confidence: { ...sure, category: 0.2, subcategory: 0.2, fit: 0.1 } });
     expect(r.tags.category).toBeNull();
     expect(r.tags.subcategory).toBeNull();
     expect(r.tags.fit).toBeNull();
@@ -166,7 +186,9 @@ describe('toItemColumns', () => {
   it('maps to clothing_items columns and keeps the AI suggestion for measuring corrections', () => {
     const cols = toItemColumns(ok(good), 'gemini-3.5-flash-lite');
     expect(cols).toMatchObject({ category: 'outerwear', subcategory: 'coat', formality: 4 });
-    expect(cols.tag_confidence).toMatchObject({ model: 'gemini-3.5-flash-lite', fields: { category: 0.9 } });
+    expect(cols.tag_confidence).toMatchObject({
+      schema_version: 1, model: 'gemini-3.5-flash-lite', fields: { category: 0.9 }, warnings: [],
+    });
     expect(cols.tag_confidence.suggested.colours).toEqual(['camel', 'black']);
   });
 });
