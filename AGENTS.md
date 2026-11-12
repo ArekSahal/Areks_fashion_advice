@@ -27,6 +27,16 @@ flag risks, and suggest simpler options. Ask before decisions that are expensive
 - Tests: Vitest/Jest for logic, Playwright or Maestro for key flows
 - CI: GitHub Actions (lint, typecheck, tests, Supabase migration check)
 
+## Claude Code plugins
+`.claude/settings.json` enables three plugins from Anthropic's official marketplace, so every
+Claude Code session in this repo (and its sub-agents) has the same tools:
+- **expo**: Expo's own skills (Expo Router, Expo Web, SDK upgrades, native UI). Follow them for app code.
+- **playwright**: a browser you can drive. Use it to click through the Pages preview and take
+  screenshots before asking owners to test.
+- **supabase**: Postgres and RLS best-practice skills, plus Supabase MCP access.
+
+Add or remove plugins only with owner approval.
+
 ## Rules
 - **Database.** Agents have full access to the Supabase database (dev and production): they may
   create/alter/drop tables, change RLS, storage and Edge Functions, and run SQL. Every schema change
