@@ -61,6 +61,8 @@ Deno.serve(async (req) => {
   if (!item || item.owner_id !== userId) return json({ error: 'item_not_found' }, 404);
   if (!item.image_path || !item.image_path.startsWith(`${userId}/`)) return json({ error: 'no_photo' }, 409);
 
+  // The user's confirmed tags are final; re-tagging would only confuse the correction metrics.
+  if (item.tags_confirmed_at) return json({ error: 'already_confirmed' }, 409);
   if (item.tag_confidence && !force) {
     return json({ status: 'already_tagged', tag_confidence: item.tag_confidence });
   }
@@ -127,15 +129,18 @@ Deno.serve(async (req) => {
     return json({ error: result.reason, message: result.message }, 422);
   }
 
-  const columns = toItemColumns(result, TAGGING_MODEL);
-  // Never overwrite tags the user already confirmed: a forced re-tag then only refreshes the suggestion.
-  const update = item.tags_confirmed_at ? { tag_confidence: columns.tag_confidence } : columns;
-  const { error: updateError } = await admin
-    .from('clothing_items').update(update).eq('id', itemId).eq('owner_id', userId);
+  // A forced re-tag keeps the earlier suggestion in tag_confidence.history. The update only matches while the
+  // item is still unconfirmed, so a user confirming during the AI call is never overwritten.
+  const columns = toItemColumns(result, TAGGING_MODEL, item.tag_confidence);
+  const { data: updated, error: updateError } = await admin
+    .from('clothing_items').update(columns)
+    .eq('id', itemId).eq('owner_id', userId).is('tags_confirmed_at', null)
+    .select('id');
   if (updateError) {
     console.error('tag-item: update failed', updateError.message);
     return json({ error: 'tagging_failed' }, 500);
   }
+  if (!updated?.length) return json({ error: 'already_confirmed' }, 409);
 
   return json({
     status: 'tagged',
@@ -143,6 +148,5 @@ Deno.serve(async (req) => {
     confidence: result.confidence,
     needs_check: result.needsCheck,
     warnings: result.warnings,
-    applied: !item.tags_confirmed_at,
   });
 });

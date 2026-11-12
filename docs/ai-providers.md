@@ -31,9 +31,13 @@ Runner-up: GPT-5.6 Luna if Google setup is a hassle.
 `aiplatform.eu.rep.googleapis.com`), authenticated with the service-account key in `GOOGLE_VERTEX_SA_KEY`
 (optional secrets `VERTEX_LOCATION`, `VERTEX_PROJECT_ID`). The model answers in the `eu` multi-region (verified
 2026-11-12 with the free `countTokens` call). EU (non-global) price: $0.33 / 1M input, $2.75 / 1M output tokens
-(thinking counts as output); every call is logged in `ai_usage`. To re-check the secret, run the `vertex-check`
-function from SQL: `select net.http_post(url := 'https://emnkjfoccluygilkebbz.supabase.co/functions/v1/vertex-check', body := '{}'::jsonb);`
-then read `net._http_response`.
+(thinking counts as output); every call is logged in the cost table. The one-off `vertex-check` health check is
+retired (returns 410); its code is in PR #25's history if the key ever needs re-checking.
+
+**Deploying Edge Functions:** always deploy from the repo files exactly as committed (Supabase CLI
+`supabase functions deploy <name>`, or MCP with every imported file at its repo path, e.g. `src/lib/tagging.ts`).
+Never upload hand-edited or trimmed copies: functions share `src/lib/*.ts` with the app, and a trimmed copy
+silently drifts from the taxonomy.
 
 ## 2. Embeddings
 | Option | $ / 1,000 images | Notes |

@@ -288,8 +288,21 @@ export function parseTaggingResponse(raw: unknown): TaggingResult {
   return { ok: true, tags, confidence, needsCheck: TAG_FIELDS.filter((f) => flagged.has(f)), warnings };
 }
 
-/** Columns the server writes on clothing_items after tagging (tags stay unconfirmed until the user saves). */
-export function toItemColumns(result: Extract<TaggingResult, { ok: true }>, model: string) {
+/** Older suggestions kept in tag_confidence.history after a forced re-tag (newest last). */
+export const MAX_SUGGESTION_HISTORY = 5;
+
+/**
+ * Columns the server writes on clothing_items after tagging (tags stay unconfirmed until the user saves).
+ * `previous` is the item's current tag_confidence: on a re-tag its suggestion moves into `history` instead of
+ * being overwritten, so tag-quality metrics can compare runs.
+ */
+export function toItemColumns(result: Extract<TaggingResult, { ok: true }>, model: string, previous?: unknown) {
+  const history: unknown[] = [];
+  if (typeof previous === 'object' && previous !== null && !Array.isArray(previous)) {
+    const { history: older, ...prev } = previous as Record<string, unknown>;
+    if (Array.isArray(older)) history.push(...older);
+    history.push(prev);
+  }
   return {
     ...result.tags,
     tag_confidence: {
@@ -298,6 +311,7 @@ export function toItemColumns(result: Extract<TaggingResult, { ok: true }>, mode
       fields: result.confidence,
       suggested: result.tags,
       warnings: result.warnings,
+      ...(history.length ? { history: history.slice(-MAX_SUGGESTION_HISTORY) } : {}),
     },
   };
 }

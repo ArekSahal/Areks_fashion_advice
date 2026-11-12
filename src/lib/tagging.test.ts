@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CATEGORIES, COLOURS, MATERIALS, PATTERNS } from './taxonomy';
 import {
   MAX_COLOURS,
+  MAX_SUGGESTION_HISTORY,
   TAGGING_PROMPT,
   TAGGING_RESPONSE_SCHEMA,
   TAG_FIELDS,
@@ -190,5 +191,23 @@ describe('toItemColumns', () => {
       schema_version: 1, model: 'gemini-3.5-flash-lite', fields: { category: 0.9 }, warnings: [],
     });
     expect(cols.tag_confidence.suggested.colours).toEqual(['camel', 'black']);
+    expect(cols.tag_confidence).not.toHaveProperty('history');
+  });
+
+  it('moves the previous suggestion into history on a re-tag instead of overwriting it', () => {
+    const first = toItemColumns(ok(good), 'model-a').tag_confidence;
+    const second = toItemColumns(ok({ ...good, subcategory: 'parka' }), 'model-b', first).tag_confidence;
+    expect(second.suggested.subcategory).toBe('parka');
+    expect(second.history).toEqual([first]);
+    const third = toItemColumns(ok(good), 'model-c', second).tag_confidence;
+    expect(third.history?.map((h) => (h as { model: string }).model)).toEqual(['model-a', 'model-b']);
+  });
+
+  it('keeps at most MAX_SUGGESTION_HISTORY old suggestions', () => {
+    let prev: unknown;
+    for (let i = 0; i < 9; i++) prev = toItemColumns(ok(good), `m${i}`, prev).tag_confidence;
+    const h = (prev as { history: { model: string }[] }).history;
+    expect(h).toHaveLength(MAX_SUGGESTION_HISTORY);
+    expect(h.at(-1)?.model).toBe('m7');
   });
 });
