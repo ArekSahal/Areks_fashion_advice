@@ -40,7 +40,7 @@ seconds of latency, so only behind an explicit user action.
 
 ## Caching rules (important)
 Channel3 says: **cache IDs, not data**. Prices, stock and offer URLs change, and offer URLs are short-lived affiliate links.
-`external_products` rules (**owner-approved 2026-11-11**, AGENTS.md updated):
+`external_products` rules (decided 2026-11-11, see [`DECISIONS.md`](DECISIONS.md)):
 
 | Data | Cache? | TTL |
 |---|---|---|
@@ -60,7 +60,7 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
   "more like this" (`/v1/similar`) 150, buffer 100 (category/brand lookups, reporting).
 - One recreate request ≈ 3–5 garments ≈ 3–5 searches before cache. Target cache hit rate ≥ 40 % → ~2.5 credits per request
   → ~240 recreates/month on the free tier.
-- **No usage limits for now (owner decision 2026-11-11).** No per-user caps and no automatic stop. Calls past the free
+- **No usage limits for now** (see [`DECISIONS.md`](DECISIONS.md), 2026-11-11). No per-user caps and no automatic stop. Calls past the free
   1,000/month are billed at $0.007 each. Instead:
   - the heartbeat warns at 70 % and 100 % of the free credits and shows projected month-end usage and cost
   - limits can be switched on later via config (per-user daily/monthly caps, global stop) without a code change
