@@ -31,8 +31,8 @@
     "react-native-url-polyfill": "^4.0.0",
     "@supabase/supabase-js": "^2.119.0",
     "@expo/vector-icons": "^15.0.2",
-    "expo-image-picker": "~57.0.0",
-    "expo-image-manipulator": "~57.0.0"
+    "expo-image-picker": "~57.0.21",
+    "expo-image-manipulator": "~57.0.22"
   },
   "devDependencies": {
     "typescript": "^6.0.3",
