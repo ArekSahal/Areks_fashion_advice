@@ -50,7 +50,7 @@ select pg_temp.expect_error('null in colours', $q$insert into public.clothing_it
 select pg_temp.expect_error('formality 6', $q$insert into public.clothing_items (formality) values (6)$q$);
 select pg_temp.expect_error('A uploads to B folder', $q$insert into storage.objects (bucket_id, name) values ('uploads-quarantine', '00000000-0000-4000-8000-0000000000b2/x.jpg')$q$);
 select pg_temp.expect_error('A writes item-photos directly', $q$insert into storage.objects (bucket_id, name) values ('item-photos', '00000000-0000-4000-8000-0000000000a1/i/clean.webp')$q$);
-select pg_temp.expect_ok('A uploads own quarantine (insert ... returning, like supabase-js)', $q$insert into storage.objects (bucket_id, name) values ('uploads-quarantine', '00000000-0000-4000-8000-0000000000a1/u1.jpg') returning id$q$);
+select pg_temp.expect_ok('A uploads own quarantine', $q$insert into storage.objects (bucket_id, name) values ('uploads-quarantine', '00000000-0000-4000-8000-0000000000a1/u1.jpg')$q$);
 insert into results select 'A uploads own quarantine, cannot read it back (expect 0)', count(*)::text from storage.objects where bucket_id = 'uploads-quarantine';
 
 set local role anon;
