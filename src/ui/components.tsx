@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -259,6 +260,70 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
         </Text>
       ) : null}
       {action ? <Button {...action} /> : null}
+    </View>
+  );
+}
+
+/** Garment photo in a 4:5 photo well with an optional one-line label. `uri` null shows the empty well (loading). */
+export function ItemCard({ uri, label }: { uri: string | null; label?: string }) {
+  const t = useTheme();
+  return (
+    <View style={{ flex: 1, gap: t.space.xs }}>
+      <View
+        style={{
+          aspectRatio: t.aspect.item,
+          borderRadius: t.radius.md,
+          overflow: 'hidden',
+          backgroundColor: t.colours.surfaceSunken,
+        }}
+      >
+        {uri ? (
+          <Image
+            source={{ uri }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            accessibilityLabel={label ?? 'Wardrobe item'}
+          />
+        ) : null}
+      </View>
+      {label ? (
+        <Text variant="caption" muted numberOfLines={1}>
+          {label}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** Grid of photos in equal columns (2 on phones, more on wide web; see gridColumns in src/lib/photo.ts). */
+export function PhotoGrid<T>({
+  items,
+  columns,
+  keyOf,
+  renderItem,
+}: {
+  items: readonly T[];
+  columns: number;
+  keyOf: (item: T) => string;
+  renderItem: (item: T) => ReactNode;
+}) {
+  const t = useTheme();
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += columns) rows.push(items.slice(i, i + columns));
+  return (
+    <View style={{ gap: t.space.lg, alignSelf: 'stretch' }}>
+      {rows.map((row) => (
+        <View key={row.map(keyOf).join(':')} style={{ flexDirection: 'row', gap: t.space.md }}>
+          {row.map((item) => (
+            <View key={keyOf(item)} style={styles.fill}>
+              {renderItem(item)}
+            </View>
+          ))}
+          {Array.from({ length: columns - row.length }, (_, i) => (
+            <View key={`spacer-${i}`} style={styles.fill} />
+          ))}
+        </View>
+      ))}
     </View>
   );
 }

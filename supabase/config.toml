@@ -36,3 +36,6 @@ verify_jwt = false
 
 [functions.account-delete]
 verify_jwt = false
+
+[functions.process-image]
+verify_jwt = false
