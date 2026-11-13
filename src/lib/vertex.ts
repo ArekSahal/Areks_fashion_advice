@@ -256,6 +256,31 @@ export function estimateCostUsd(model: string, location: string, usage: Usage): 
   return Math.round(usd * 1e8) / 1e8;
 }
 
+/** Row for the shared `api_usage` cost log (docs/architecture.md): one per Vertex call, also failed ones. */
+export function vertexUsageRow(row: {
+  userId: string | null;
+  feature: string;
+  model: string;
+  location: string;
+  usage: Usage | null;
+  ok: boolean;
+}) {
+  const usage = row.usage ?? { inputTokens: 0, outputTokens: 0 };
+  return {
+    user_id: row.userId,
+    provider: 'vertex' as const,
+    feature: row.feature,
+    model: row.model,
+    location: row.location,
+    input_tokens: usage.inputTokens,
+    output_tokens: usage.outputTokens,
+    units: usage.inputTokens + usage.outputTokens,
+    unit: 'tokens' as const,
+    cost_estimate_usd: estimateCostUsd(row.model, row.location, usage),
+    ok: row.ok,
+  };
+}
+
 /** Shortens a provider error for logs/responses and strips anything that looks like a key or token. */
 export function safeErrorMessage(message: unknown, max = 300): string {
   const s = typeof message === 'string' ? message : String(message);

@@ -44,8 +44,7 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 | `external_products` | source ('channel3'), external_id, title, brand, image_url, category, colours[], materials[], embedding, price_hint, currency, availability_hint, best_offer_domain, fetched_at | readable by authenticated users; written only by Edge Functions. **No buy URLs stored**: fetched fresh with the free product-detail call (see `docs/DECISIONS.md` and `docs/channel3.md`) |
 | `external_search_cache` | key_hash, external_ids[], fetched_at | Edge Functions only |
 | `recommendation_feedback` | owner_id, seed_item_id, candidate ref, signal (shown/accepted/liked/disliked/worn), created_at | owner only |
-| `api_usage` | feature, provider, units (credits / tokens / calls), cost_estimate_usd, user_id (nullable), created_at | Edge Functions write; owners read via dashboard. On account delete: `user_id` set to null (aggregate cost kept) |
-| `ai_usage` (built in M1c) | user_id (null for health checks), feature, model, location, input_tokens, output_tokens, est_cost_usd, ok, created_at | Edge Functions write (one row per Vertex call, also failed ones); owner can read own rows (included in export); deleted with the account. Cost formula in `src/lib/vertex.ts` |
+| `api_usage` (built in M1c) | feature, provider (vertex / channel3 / photoroom), units + unit (tokens / credits / calls), cost_estimate_usd, user_id (nullable), ok, created_at; Vertex rows also keep model, location, input/output tokens | Edge Functions write (one row per paid call, also failed ones); owner can read own rows (included in export); owners read totals via dashboard. On account delete: `user_id` set to null (aggregate cost kept). Vertex cost formula in `src/lib/vertex.ts` |
 | `events` | user_id, name, props jsonb, created_at | insert-own-only; deleted with the account. See `docs/metrics.md` |
 
 Conventions: `uuid` primary keys, `owner_id` → `auth.users(id) on delete cascade`, `created_at`/`updated_at` timestamps,
@@ -108,7 +107,7 @@ rule score + embedding similarity → top 10 with reasons → log `shown` in `re
 - Only the publishable key in the app; secret keys only in Edge Function secrets.
 - No faces sent to AI unless the user opts in (blurred by default, see Storage); inspiration crops exclude faces.
 - GDPR: `account-export` (JSON + photos zip) and `account-delete` ship in M1, not later. Delete rules per table:
-  own rows cascade from `auth.users` (including `ai_usage`); all storage under `{user_id}/` in every bucket is removed;
+  own rows cascade from `auth.users`; all storage under `{user_id}/` in every bucket is removed;
   `api_usage.user_id` is nulled; `events` deleted; messages the user sent to others are replaced with "deleted user" and their body cleared;
   active listings are withdrawn first.
 - Consent flags stored on `profiles` with timestamp.

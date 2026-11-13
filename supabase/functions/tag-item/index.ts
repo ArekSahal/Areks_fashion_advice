@@ -1,7 +1,7 @@
 // tag-item: suggests tags for one wardrobe item with Gemini on Vertex AI (EU), see docs/ai-providers.md.
 // POST { item_id, force? } with the user's JWT. Sends the cleaned photo only if faces were blurred or the user
 // turned on "Let AI see faces". Stores the suggestion (tag columns + tag_confidence); tags_confirmed_at stays null
-// until the user confirms. Every Vertex call is logged in ai_usage.
+// until the user confirms. Every Vertex call is logged in api_usage.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { parseTaggingResponse, toItemColumns } from '../../../src/lib/tagging.ts';
 import {
@@ -83,8 +83,8 @@ Deno.serve(async (req) => {
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { count } = await admin
-    .from('ai_usage').select('id', { count: 'exact', head: true })
-    .eq('user_id', userId).eq('feature', 'tag_item').gte('created_at', since);
+    .from('api_usage').select('id', { count: 'exact', head: true })
+    .eq('user_id', userId).eq('provider', 'vertex').eq('feature', 'tag_item').gte('created_at', since);
   if ((count ?? 0) >= DAILY_LIMIT) return json({ error: 'daily_limit_reached' }, 429);
 
   let cfg;

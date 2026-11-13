@@ -13,7 +13,7 @@ const CORS = {
 const USER_TABLES: Record<string, string> = {
   profiles: 'id',
   clothing_items: 'owner_id',
-  ai_usage: 'user_id',
+  api_usage: 'user_id',
 };
 
 const SIGNED_URL_SECONDS = 7 * 24 * 60 * 60;

@@ -1,17 +1,17 @@
 // Google Vertex AI access for Edge Functions: reads GOOGLE_VERTEX_SA_KEY, gets an OAuth token (cached per
-// isolate), calls Gemini and logs every call to ai_usage. Pure parts (JWT, request/response shapes, prices)
+// isolate), calls Gemini and logs every call to api_usage. Pure parts (JWT, request/response shapes, prices)
 // live in src/lib/vertex.ts and are unit-tested there. Never log or return the key or the access token.
 import {
   DEFAULT_LOCATION,
   type ServiceAccountKey,
   type Usage,
-  estimateCostUsd,
   modelUrl,
   parseServiceAccountKey,
   parseUsage,
   safeErrorMessage,
   signServiceAccountJwt,
   tokenRequestBody,
+  vertexUsageRow,
 } from '../../../src/lib/vertex.ts';
 
 export type VertexStep = 'config' | 'auth' | 'request';
@@ -101,23 +101,13 @@ export async function callModel(
 // deno-lint-ignore no-explicit-any
 type AdminClient = { from: (table: string) => any };
 
-/** One row per Vertex call (also failed ones), so cost per feature can be reported (docs/metrics.md). */
+/** One row per Vertex call (also failed ones) in the shared api_usage cost log (docs/metrics.md). */
 export async function logAiUsage(
   admin: AdminClient,
   row: { userId: string | null; feature: string; model: string; location: string; usage: Usage | null; ok: boolean },
 ): Promise<void> {
-  const usage = row.usage ?? { inputTokens: 0, outputTokens: 0 };
-  const { error } = await admin.from('ai_usage').insert({
-    user_id: row.userId,
-    feature: row.feature,
-    model: row.model,
-    location: row.location,
-    input_tokens: usage.inputTokens,
-    output_tokens: usage.outputTokens,
-    est_cost_usd: estimateCostUsd(row.model, row.location, usage),
-    ok: row.ok,
-  });
-  if (error) console.error('ai_usage insert failed', error.message);
+  const { error } = await admin.from('api_usage').insert(vertexUsageRow(row));
+  if (error) console.error('api_usage insert failed', error.message);
 }
 
 export { parseUsage };

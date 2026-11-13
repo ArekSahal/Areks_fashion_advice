@@ -10,6 +10,7 @@ import {
   buildTaggingRequest,
   bytesToBase64,
   estimateCostUsd,
+  vertexUsageRow,
   extractResponseText,
   modelUrl,
   parseServiceAccountKey,
@@ -225,5 +226,27 @@ describe('safeErrorMessage', () => {
     );
     expect(msg).not.toMatch(/abc|ya29|eyJ/);
     expect(safeErrorMessage('x'.repeat(1000)).length).toBe(300);
+  });
+});
+
+describe('vertexUsageRow', () => {
+  it('builds an api_usage row with provider, token units and a cost estimate', () => {
+    const row = vertexUsageRow({
+      userId: 'u1', feature: 'tag_item', model: TAGGING_MODEL, location: 'eu',
+      usage: { inputTokens: 1500, outputTokens: 150 }, ok: true,
+    });
+    expect(row).toEqual({
+      user_id: 'u1', provider: 'vertex', feature: 'tag_item', model: TAGGING_MODEL, location: 'eu',
+      input_tokens: 1500, output_tokens: 150, units: 1650, unit: 'tokens', cost_estimate_usd: 0.0009075, ok: true,
+    });
+  });
+
+  it('logs failed calls with zero units', () => {
+    const row = vertexUsageRow({ userId: null, feature: 'tag_item', model: TAGGING_MODEL, location: 'eu', usage: null, ok: false });
+    expect(row).toMatchObject({ user_id: null, units: 0, input_tokens: 0, output_tokens: 0, cost_estimate_usd: 0, ok: false });
+  });
+
+  it('has no cost estimate for unknown models', () => {
+    expect(vertexUsageRow({ userId: null, feature: 'x', model: 'nope', location: 'eu', usage: null, ok: true }).cost_estimate_usd).toBeNull();
   });
 });
