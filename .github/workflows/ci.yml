@@ -36,7 +36,13 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx expo install --check
+      # Warning only: Expo ships patch releases often, and a newer patch should not turn
+      # every PR red. The Bootstrap workflow keeps this check strict when deps change.
+      - name: Expo version check (warning only)
+        run: |
+          if ! npx expo install --check; then
+            echo "::warning title=Expo patch versions behind::Expo recommends newer patch versions (see the list above). Bump them in package.json on an agent/* branch; Bootstrap regenerates package-lock.json."
+          fi
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
