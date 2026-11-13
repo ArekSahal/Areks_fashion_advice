@@ -1,11 +1,14 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
+import { Pressable } from 'react-native';
+import { useAuth } from '@/lib/auth';
 import { friendlyAuthError, validateEmail, validatePassword } from '@/lib/authForm';
 import { supabase } from '@/lib/supabase';
 import { Button, Screen, Text, TextField, useTheme } from '@/ui';
 
 export default function SignIn() {
   const t = useTheme();
+  const { linkError, clearLinkError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string | null; password?: string | null; form?: string | null }>({});
@@ -14,6 +17,7 @@ export default function SignIn() {
   async function submit() {
     const next = { email: validateEmail(email), password: validatePassword(password, 'sign-in') };
     setErrors(next);
+    clearLinkError();
     if (next.email || next.password) return;
 
     setBusy(true);
@@ -53,15 +57,27 @@ export default function SignIn() {
         onSubmitEditing={submit}
       />
 
-      {errors.form ? (
+      <Link href="/forgot-password" asChild onPress={clearLinkError}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Forgot password?"
+          style={{ alignSelf: 'flex-end', minHeight: t.touchTarget, justifyContent: 'center', paddingHorizontal: t.space.sm }}
+        >
+          <Text variant="label" muted>
+            Forgot password?
+          </Text>
+        </Pressable>
+      </Link>
+
+      {errors.form || linkError ? (
         <Text tone="danger" accessibilityLiveRegion="polite">
-          {errors.form}
+          {errors.form ?? linkError}
         </Text>
       ) : null}
 
       <Button label="Sign in" onPress={submit} loading={busy} />
 
-      <Link href="/sign-up" replace style={{ marginTop: t.space.md }}>
+      <Link href="/sign-up" replace accessibilityLabel="New to Cloey? Create an account" style={{ marginTop: t.space.md }}>
         <Text variant="label" muted>
           New to Cloey? <Text variant="label">Create an account</Text>
         </Text>
