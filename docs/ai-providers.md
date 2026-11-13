@@ -25,8 +25,19 @@ not used for training. Photos never leave the phone before faces are blurred.
 | Claude Haiku 5.5 | ~0.33 | Cheapest; vision + schema output unverified | **No EU processing** (US/global only) |
 | Open models on Together (Qwen3.5 9B etc.) | ~0.35 | Weaker on fine detail | US hosting (unverified) |
 
-Runner-up: GPT-5.6 Luna if Google setup is a hassle. To do first: confirm `gemini-3.5-flash-lite` is listed for
-the `eu` region in Google's data-residency table.
+Runner-up: GPT-5.6 Luna if Google setup is a hassle.
+
+**As built (M1c-4):** `tag-item` calls `gemini-3.5-flash-lite` at location `eu` (host
+`aiplatform.eu.rep.googleapis.com`), authenticated with the service-account key in `GOOGLE_VERTEX_SA_KEY`
+(optional secrets `VERTEX_LOCATION`, `VERTEX_PROJECT_ID`). The model answers in the `eu` multi-region (verified
+2026-11-12 with the free `countTokens` call). EU (non-global) price: $0.33 / 1M input, $2.75 / 1M output tokens
+(thinking counts as output); every call is logged in the cost table. The one-off `vertex-check` health check is
+retired (returns 410); its code is in PR #25's history if the key ever needs re-checking.
+
+**Deploying Edge Functions:** always deploy from the repo files exactly as committed (Supabase CLI
+`supabase functions deploy <name>`, or MCP with every imported file at its repo path, e.g. `src/lib/tagging.ts`).
+Never upload hand-edited or trimmed copies: functions share `src/lib/*.ts` with the app, and a trimmed copy
+silently drifts from the taxonomy.
 
 ## 2. Embeddings
 | Option | $ / 1,000 images | Notes |

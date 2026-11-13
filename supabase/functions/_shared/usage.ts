@@ -1,6 +1,6 @@
 // Shared paid-API usage log (AGENTS.md → Costs). Writes one row per provider call to public.api_usage
-// (created by the AI-usage migration in PR #25: user_id, feature, provider, model, units, input_tokens,
-// output_tokens, est_cost_usd, created_at). Callers must treat a failed log as "don't call the provider",
+// (migration 20261113073121_ai_usage_to_api_usage: user_id, feature, provider, model, units, unit, input_tokens,
+// output_tokens, cost_estimate_usd, ok, created_at). Callers must treat a failed log as "don't call the provider",
 // so no paid call ever goes unlogged or uncapped (e.g. before that table exists).
 import type { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -12,9 +12,10 @@ export type UsageRow = {
   provider: string;
   model: string;
   units?: number;
+  unit: 'tokens' | 'credits' | 'calls';
   input_tokens?: number;
   output_tokens?: number;
-  est_cost_usd?: number;
+  cost_estimate_usd?: number;
 };
 
 /** Number of calls for this user + feature in the last 24 hours, or null if it can't be counted. */

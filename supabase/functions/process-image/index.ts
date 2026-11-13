@@ -91,7 +91,8 @@ async function removeBackground(admin: Admin, userId: string, photo: Photo): Pro
       provider: 'photoroom',
       model: 'segment-v1',
       units: 1,
-      est_cost_usd: PHOTOROOM_COST_USD,
+      unit: 'calls',
+      cost_estimate_usd: PHOTOROOM_COST_USD,
     });
     if (!logged) return photo;
 
