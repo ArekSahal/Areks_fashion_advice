@@ -53,6 +53,37 @@ const INTRO: Record<TagForm['source'], { title: string; body: string }> = {
   confirmed: { title: 'Edit tags', body: 'Change anything that’s off, then save.' },
 };
 
+type Loaded = { phase: Phase; form?: TagForm };
+
+/**
+ * Loads the item and decides what to show. Confirmed items open for editing, a stored suggestion is reused (so
+ * skipping and coming back costs no AI call), otherwise tag-item is asked. Never throws.
+ */
+async function loadTagging(itemId: string, onPhoto: (uri: string | null) => void): Promise<Loaded> {
+  try {
+    const item = itemId ? await fetchItemForTagging(itemId) : null;
+    if (!item) return { phase: { kind: 'missing' } };
+    const path = item.image_path ?? item.thumb_path;
+    if (path) {
+      signedPhotoUrls([path])
+        .then((urls) => onPhoto(urls[path] ?? null))
+        .catch(() => undefined);
+    }
+    if (item.tags_confirmed_at) return { phase: { kind: 'form' }, form: formFromColumns(item) };
+    const stored = suggestionFromStored(item.tag_confidence);
+    if (stored) return { phase: { kind: 'form' }, form: initialForm(stored) };
+    const result = await requestTagSuggestion(itemId);
+    if (result.ok) return { phase: { kind: 'form' }, form: initialForm(result.suggestion) };
+    if (result.kind === 'already_confirmed') {
+      const fresh = await fetchItemForTagging(itemId);
+      return { phase: { kind: 'form' }, form: fresh ? formFromColumns(fresh) : initialForm(null) };
+    }
+    return { phase: { kind: 'error', error: result.kind } };
+  } catch {
+    return { phase: { kind: 'error', error: 'unavailable' } };
+  }
+}
+
 /** Leaves the modal for the wardrobe tab (also works after a page reload on web, when there's nothing to go back to). */
 function toWardrobe() {
   if (router.canDismiss()) router.dismissTo('/');
@@ -74,59 +105,28 @@ export default function ConfirmTags() {
   const [saving, setSaving] = useState(false);
   const active = useRef(true);
 
-  const load = useCallback(async () => {
-    setPhase({ kind: 'loading' });
-    setMessage(null);
-    try {
-      const item = itemId ? await fetchItemForTagging(itemId) : null;
-      if (!active.current) return;
-      if (!item) {
-        setPhase({ kind: 'missing' });
-        return;
-      }
-      const path = item.image_path ?? item.thumb_path;
-      if (path) {
-        signedPhotoUrls([path])
-          .then((urls) => active.current && setPhoto(urls[path] ?? null))
-          .catch(() => undefined);
-      }
-      if (item.tags_confirmed_at) {
-        setForm(formFromColumns(item));
-        setPhase({ kind: 'form' });
-        return;
-      }
-      // A suggestion from an earlier visit is reused, so skipping and coming back costs no AI call.
-      const stored = suggestionFromStored(item.tag_confidence);
-      if (stored) {
-        setForm(initialForm(stored));
-        setPhase({ kind: 'form' });
-        return;
-      }
-      const result = await requestTagSuggestion(itemId);
-      if (!active.current) return;
-      if (result.ok) {
-        setForm(initialForm(result.suggestion));
-        setPhase({ kind: 'form' });
-      } else if (result.kind === 'already_confirmed') {
-        const fresh = await fetchItemForTagging(itemId);
-        if (!active.current) return;
-        setForm(fresh ? formFromColumns(fresh) : initialForm(null));
-        setPhase({ kind: 'form' });
-      } else {
-        setPhase({ kind: 'error', error: result.kind });
-      }
-    } catch {
-      if (active.current) setPhase({ kind: 'error', error: 'unavailable' });
-    }
-  }, [itemId]);
+  const apply = useCallback((loaded: Loaded) => {
+    if (!active.current) return;
+    if (loaded.form) setForm(loaded.form);
+    setPhase(loaded.phase);
+  }, []);
+  const showPhoto = useCallback((uri: string | null) => {
+    if (active.current) setPhoto(uri);
+  }, []);
 
   useEffect(() => {
     active.current = true;
-    load();
+    loadTagging(itemId, showPhoto).then(apply);
     return () => {
       active.current = false;
     };
-  }, [load]);
+  }, [itemId, apply, showPhoto]);
+
+  function retry() {
+    setMessage(null);
+    setPhase({ kind: 'loading' });
+    loadTagging(itemId, showPhoto).then(apply);
+  }
 
   function tagMyself() {
     setForm(initialForm(null));
@@ -209,7 +209,7 @@ export default function ConfirmTags() {
         <Text variant="title">Add tags</Text>
         {photoWell}
         <Text accessibilityLiveRegion="polite">{copy.message}</Text>
-        {copy.canRetry ? <Button label="Try again" onPress={load} /> : null}
+        {copy.canRetry ? <Button label="Try again" onPress={retry} /> : null}
         <Button label="Tag it myself" variant={copy.canRetry ? 'secondary' : 'primary'} onPress={tagMyself} />
         {skip}
       </Screen>
