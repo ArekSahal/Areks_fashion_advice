@@ -55,6 +55,8 @@ export type TagForm = {
   suggestion: Suggestion | null;
   /** Fields the user changed; their highlight goes away. */
   touched: TagField[];
+  /** Fields an edit emptied (a subcategory cleared by a new category): "pick" while they stay empty. */
+  needsPick: TagField[];
 };
 
 export type FieldStatus = 'ok' | 'check' | 'pick';
@@ -132,7 +134,13 @@ export function suggestionFromStored(tagConfidence: unknown): Suggestion | null 
 }
 
 /** What went wrong when asking tag-item for suggestions, as far as the screen cares. */
-export type TagErrorKind = 'needs_face_consent' | 'daily_limit' | 'not_garment' | 'already_confirmed' | 'unavailable';
+export type TagErrorKind =
+  | 'needs_face_consent'
+  | 'daily_limit'
+  | 'not_garment'
+  | 'already_confirmed'
+  | 'not_available'
+  | 'unavailable';
 
 /** Maps a tag-item error body (`{ error: '...' }`, or nothing on a network error) to what the screen shows. */
 export function tagErrorKind(body: unknown): TagErrorKind {
@@ -146,6 +154,11 @@ export function tagErrorKind(body: unknown): TagErrorKind {
       return 'not_garment';
     case 'already_confirmed':
       return 'already_confirmed';
+    // Setup or photo problems a retry won't fix.
+    case 'ai_not_configured':
+    case 'no_photo':
+    case 'photo_unavailable':
+      return 'not_available';
     default:
       return 'unavailable';
   }
@@ -156,7 +169,7 @@ export const TAG_ERROR_COPY: Record<Exclude<TagErrorKind, 'already_confirmed'>, 
   needs_face_consent: {
     message:
       'To keep faces private, we only send photos to the AI after faces are blurred, and that step isn’t ready yet. ' +
-      'You can tag this one yourself, or turn on “Let AI see faces” in Profile.',
+      'You can tag this one yourself, or turn on “Let AI see faces in my photos” in Profile.',
     canRetry: false,
   },
   daily_limit: {
@@ -165,6 +178,10 @@ export const TAG_ERROR_COPY: Record<Exclude<TagErrorKind, 'already_confirmed'>, 
   },
   not_garment: {
     message: 'We couldn’t spot a piece of clothing in this photo. You can tag it yourself.',
+    canRetry: false,
+  },
+  not_available: {
+    message: 'Tag suggestions aren’t available for this photo right now. You can tag it yourself.',
     canRetry: false,
   },
   unavailable: {
@@ -176,8 +193,8 @@ export const TAG_ERROR_COPY: Record<Exclude<TagErrorKind, 'already_confirmed'>, 
 /** Starts the form from an AI suggestion (fields highlighted where needed) or empty for "Tag it myself". */
 export function initialForm(suggestion: Suggestion | null): TagForm {
   return suggestion
-    ? { tags: cloneTags(suggestion.tags), source: 'ai', suggestion, touched: [] }
-    : { tags: cloneTags(EMPTY_TAGS), source: 'manual', suggestion: null, touched: [] };
+    ? { tags: cloneTags(suggestion.tags), source: 'ai', suggestion, touched: [], needsPick: [] }
+    : { tags: cloneTags(EMPTY_TAGS), source: 'manual', suggestion: null, touched: [], needsPick: [] };
 }
 
 /** Tag columns of an existing item (already confirmed): no highlights, the user just edits. */
@@ -195,7 +212,7 @@ export function formFromColumns(row: TagColumns): TagForm {
     seasons: [...(row.seasons ?? [])],
     occasions: [...(row.occasions ?? [])],
   };
-  return { tags, source: 'confirmed', suggestion: null, touched: [] };
+  return { tags, source: 'confirmed', suggestion: null, touched: [], needsPick: [] };
 }
 
 function cloneTags(t: ItemTags): ItemTags {
@@ -214,6 +231,7 @@ function cloneTags(t: ItemTags): ItemTags {
  * Once the user touches a field it is theirs and shows as 'ok'.
  */
 export function fieldStatus(form: TagForm, field: TagField): FieldStatus {
+  if (form.needsPick.includes(field) && isEmpty(form.tags[field])) return 'pick';
   const s = form.suggestion;
   if (!s || form.touched.includes(field)) return 'ok';
   const flagged = s.needsCheck.includes(field);
@@ -232,26 +250,30 @@ function touch(form: TagForm, ...fields: TagField[]): TagField[] {
   return out;
 }
 
-/** Picking a category clears a subcategory that doesn't belong to it. */
+/** Picking a category clears a subcategory that doesn't belong to it; the type then asks to be picked again. */
 export function setCategory(form: TagForm, category: Category | null): TagForm {
   const sub = form.tags.subcategory;
   const keepSub = sub !== null && category !== null && categoryOf(sub) === category;
+  const cleared = sub !== null && !keepSub;
   return {
     ...form,
     tags: { ...form.tags, category, subcategory: keepSub ? sub : null },
     touched: touch(form, 'category'),
+    needsPick: cleared && !form.needsPick.includes('subcategory') ? [...form.needsPick, 'subcategory'] : form.needsPick,
   };
 }
 
 /** Picking a subcategory also sets its category (a coat is always outerwear). Clearing it keeps the category. */
 export function setSubcategory(form: TagForm, subcategory: Subcategory | null): TagForm {
+  const needsPick = form.needsPick.filter((f) => f !== 'subcategory');
   if (subcategory === null) {
-    return { ...form, tags: { ...form.tags, subcategory: null }, touched: touch(form, 'subcategory') };
+    return { ...form, tags: { ...form.tags, subcategory: null }, touched: touch(form, 'subcategory'), needsPick };
   }
   return {
     ...form,
     tags: { ...form.tags, subcategory, category: categoryOf(subcategory) },
     touched: touch(form, 'subcategory', 'category'),
+    needsPick,
   };
 }
 
@@ -271,6 +293,21 @@ export function toggleValue<F extends MultiField>(form: TagForm, field: F, value
   else if (current.length < MAX_SELECTED[field]) next = [...current, v];
   else return form;
   return { ...form, tags: { ...form.tags, [field]: next }, touched: touch(form, field) };
+}
+
+/** True when toggleValue would ignore this value because the field is full. */
+export function atLimit<F extends MultiField>(form: TagForm, field: F, value: ItemTags[F][number]): boolean {
+  const current = form.tags[field] as readonly string[];
+  return !current.includes(value as string) && current.length >= MAX_SELECTED[field];
+}
+
+export function limitMessage(field: MultiField): string {
+  return `You can pick up to ${MAX_SELECTED[field]}. Tap one to remove it.`;
+}
+
+/** Badge for a selected chip in an ordered field: the first colour or fabric is the main one. */
+export function orderBadge(values: readonly string[], value: string): string | undefined {
+  return values.length > 1 && values[0] === value ? 'Main' : undefined;
 }
 
 /** Required fields still empty, in display order. */

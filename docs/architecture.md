@@ -34,7 +34,7 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 | Table | Key columns | Notes / RLS |
 |---|---|---|
 | `profiles` | id (= auth.users.id), display_name, locale, style_unlocked_at, consent_* flags | owner only; created by trigger on sign-up |
-| `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, embedding vector, created_at | owner only; marketplace reads go through `listings` |
+| `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, tags_confirmed_at, embedding vector, created_at | owner only; marketplace reads go through `listings`. **The tag columns hold unconfirmed AI suggestions until `tags_confirmed_at` is set** (the original suggestion stays in `tag_confidence.suggested`). Every consumer (recommend, outfits, style profile, listings, search) must filter `tags_confirmed_at is not null` or treat the tags as suggestions |
 | `outfits` | id, owner_id, worn_on date, photo_path, notes | owner only |
 | `outfit_items` | outfit_id, item_id | owner only (via outfit); wear counts and "last worn" come from here (view `item_wear_stats`) |
 | `listings` | id, item_id, seller_id, price, currency, condition, size, city, status (active/reserved/sold/withdrawn) | **signed-in users** read active listings through `listings_public` (a view with `security_invoker = true`, safe columns only, no exact location); seller writes. Never a plain view (views bypass RLS by default) |
@@ -79,7 +79,10 @@ are the common case, so this is the default path, not an edge case.
 ## Key flows
 **Add item (M1, target < 30 s):** camera → client resize/re-encode → upload to `uploads-quarantine` → `process-image`
 (strip, blur faces, move to `item-photos`) → insert `clothing_items`
-(status `owned`, tags empty) → call `tag-item` → user confirms chips → save → `process-image` + `embed` run in background.
+(status `owned`, tags empty) → call `tag-item` (writes the suggestion into the tag columns + `tag_confidence`, still
+unconfirmed) → **Confirm tags** screen (`app/confirm-tags.tsx`): user checks/fixes the chips → Save writes the tags and
+`tags_confirmed_at` → `embed` runs in background. "Skip for now" leaves `tags_confirmed_at` null; the wardrobe shows the
+item as "Needs tags" and never displays its unconfirmed tags as facts.
 
 **Post outfit (M2):** photo (optional) + pick items → insert `outfits` + `outfit_items` → wear stats update via view.
 

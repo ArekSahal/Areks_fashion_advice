@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   EMPTY_TAGS,
+  atLimit,
+  limitMessage,
+  orderBadge,
   TAG_ERROR_COPY,
   fieldStatus,
   formFromColumns,
@@ -90,6 +93,10 @@ describe('tagErrorKind', () => {
     expect(tagErrorKind({ error: 'daily_limit_reached' })).toBe('daily_limit');
     expect(tagErrorKind({ error: 'not_garment' })).toBe('not_garment');
     expect(tagErrorKind({ error: 'already_confirmed' })).toBe('already_confirmed');
+    for (const error of ['ai_not_configured', 'no_photo', 'photo_unavailable']) {
+      expect(tagErrorKind({ error })).toBe('not_available');
+    }
+    expect(TAG_ERROR_COPY.not_available.canRetry).toBe(false);
   });
 
   it('treats everything else (network, AI down, broken reply) as retryable', () => {
@@ -151,6 +158,15 @@ describe('editing', () => {
     expect(setCategory(formFromColumns(coat), 'outerwear').tags.subcategory).toBe('coat');
   });
 
+  it('asks to pick the type again after a new category cleared it', () => {
+    let form = setCategory(aiForm(coat, sure), 'top');
+    expect(fieldStatus(form, 'subcategory')).toBe('pick');
+    form = setSubcategory(form, 'knit');
+    expect(fieldStatus(form, 'subcategory')).toBe('ok');
+    expect(fieldStatus(setCategory(formFromColumns(coat), 'bottom'), 'subcategory')).toBe('pick');
+    expect(fieldStatus(setCategory(initialForm(null), 'top'), 'subcategory')).toBe('ok');
+  });
+
   it('clearing the subcategory keeps the category', () => {
     expect(setSubcategory(formFromColumns(coat), null).tags).toMatchObject({ category: 'outerwear', subcategory: null });
   });
@@ -161,6 +177,16 @@ describe('editing', () => {
     expect(form.tags.colours).toEqual(['navy', 'white', 'red']);
     form = toggleValue(form, 'colours', 'navy');
     expect(form.tags.colours).toEqual(['white', 'red']);
+  });
+
+  it('knows when a multi-choice field is full and which value is the main one', () => {
+    const form = formFromColumns({ ...coat, colours: ['navy', 'white', 'red'] });
+    expect(atLimit(form, 'colours', 'green')).toBe(true);
+    expect(atLimit(form, 'colours', 'navy')).toBe(false); // tapping a selected one removes it
+    expect(limitMessage('colours')).toBe('You can pick up to 3. Tap one to remove it.');
+    expect(orderBadge(form.tags.colours, 'navy')).toBe('Main');
+    expect(orderBadge(form.tags.colours, 'white')).toBeUndefined();
+    expect(orderBadge(['navy'], 'navy')).toBeUndefined();
   });
 
   it('does not mutate the previous state or the suggestion', () => {

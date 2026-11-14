@@ -6,12 +6,15 @@ import {
   FORMALITY_IDS,
   MAX_SELECTED,
   TAG_ERROR_COPY,
+  atLimit,
   fieldStatus,
   formFromColumns,
   formalityLabel,
   initialForm,
+  limitMessage,
   missingFields,
   missingMessage,
+  orderBadge,
   setCategory,
   setSingle,
   setSubcategory,
@@ -86,8 +89,13 @@ async function loadTagging(itemId: string, onPhoto: (uri: string | null) => void
 
 /** Leaves the modal for the wardrobe tab (also works after a page reload on web, when there's nothing to go back to). */
 function toWardrobe() {
-  if (router.canDismiss()) router.dismissTo('/');
-  else router.replace('/');
+  if (router.canDismiss()) {
+    router.dismissTo('/');
+    // The modal may have been opened from the Add tab: make sure the Wardrobe tab is the one in focus.
+    router.navigate('/');
+  } else {
+    router.replace('/');
+  }
 }
 
 /**
@@ -103,6 +111,7 @@ export default function ConfirmTags() {
   const [form, setForm] = useState<TagForm>(() => initialForm(null));
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [limitHit, setLimitHit] = useState<'colours' | 'materials' | null>(null);
   const active = useRef(true);
 
   const apply = useCallback((loaded: Loaded) => {
@@ -129,6 +138,7 @@ export default function ConfirmTags() {
   }
 
   function tagMyself() {
+    setLimitHit(null);
     setForm(initialForm(null));
     setMessage(null);
     setPhase({ kind: 'form' });
@@ -217,6 +227,24 @@ export default function ConfirmTags() {
   }
 
   const tags = form.tags;
+
+  /** Toggles a colour or material; at the limit the tap is ignored and a note explains why. */
+  function toggle<F extends 'colours' | 'materials'>(field: F, value: TagForm['tags'][F][number]) {
+    if (atLimit(form, field, value)) {
+      setLimitHit(field);
+      return;
+    }
+    setLimitHit(null);
+    setForm((f) => toggleValue(f, field, value));
+  }
+
+  function limitNote(field: 'colours' | 'materials') {
+    return limitHit === field ? (
+      <Text variant="caption" accessibilityLiveRegion="polite">
+        {limitMessage(field)}
+      </Text>
+    ) : null;
+  }
   const intro = INTRO[form.source];
   const multipleGarments = form.suggestion?.warnings.includes('multiple_garments');
 
@@ -237,24 +265,32 @@ export default function ConfirmTags() {
         />
       </TagConfirmRow>
 
-      <TagConfirmRow label="Type" status={fieldStatus(form, 'subcategory')}>
-        <ChipGroup
-          options={options(subcategoryOptions(tags.category))}
-          value={tags.subcategory}
-          onChange={(v) => setForm((f) => setSubcategory(f, v))}
-        />
+      <TagConfirmRow
+        label="Type"
+        status={fieldStatus(form, 'subcategory')}
+        hint={tags.category ? undefined : 'Pick a category first.'}
+      >
+        {tags.category ? (
+          <ChipGroup
+            options={options(subcategoryOptions(tags.category))}
+            value={tags.subcategory}
+            onChange={(v) => setForm((f) => setSubcategory(f, v))}
+          />
+        ) : null}
       </TagConfirmRow>
 
       <TagConfirmRow
         label="Colours"
         status={fieldStatus(form, 'colours')}
-        hint={`Up to ${MAX_SELECTED.colours}, main colour first.`}
+        hint={`Up to ${MAX_SELECTED.colours}. The first one you pick is the main colour; tap again to remove.`}
       >
         <MultiChipGroup
           options={COLOUR_OPTIONS}
           values={tags.colours}
-          onToggle={(v) => setForm((f) => toggleValue(f, 'colours', v))}
+          onToggle={(v) => toggle('colours', v)}
+          badgeOf={(v) => orderBadge(tags.colours, v)}
         />
+        {limitNote('colours')}
       </TagConfirmRow>
 
       <TagConfirmRow label="Pattern" status={fieldStatus(form, 'pattern')}>
@@ -268,13 +304,15 @@ export default function ConfirmTags() {
       <TagConfirmRow
         label="Material"
         status={fieldStatus(form, 'materials')}
-        hint={`Up to ${MAX_SELECTED.materials}, main fabric first. Leave empty if you’re not sure.`}
+        hint={`Up to ${MAX_SELECTED.materials}. The first one you pick is the main fabric. Leave empty if you’re not sure.`}
       >
         <MultiChipGroup
           options={MATERIAL_OPTIONS}
           values={tags.materials}
-          onToggle={(v) => setForm((f) => toggleValue(f, 'materials', v))}
+          onToggle={(v) => toggle('materials', v)}
+          badgeOf={(v) => orderBadge(tags.materials, v)}
         />
+        {limitNote('materials')}
       </TagConfirmRow>
 
       <TagConfirmRow label="Formality" status={fieldStatus(form, 'formality')}>

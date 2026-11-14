@@ -159,23 +159,29 @@ export function ColourSwatch({ hex, size = 16 }: { hex: string; size?: number })
   );
 }
 
-/** Selectable pill for filters, tags and single choices. `swatch` adds a garment colour dot before the label. */
+/**
+ * Selectable pill for filters, tags and single choices. `swatch` adds a garment colour dot before the label;
+ * `badge` adds a short note after it (e.g. "Main" on the dominant colour).
+ */
 export function Chip({
   label,
   selected,
   onPress,
   swatch,
+  badge,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   swatch?: string;
+  badge?: string;
 }) {
   const t = useTheme();
+  const fg = selected ? t.colours.onAccent : t.colours.text;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
       accessibilityState={{ selected }}
       onPress={onPress}
       hitSlop={(t.touchTarget - 36) / 2}
@@ -192,9 +198,14 @@ export function Chip({
       }}
     >
       {swatch ? <ColourSwatch hex={swatch} /> : null}
-      <Text variant="label" style={{ color: selected ? t.colours.onAccent : t.colours.text }}>
+      <Text variant="label" style={{ color: fg }}>
         {label}
       </Text>
+      {badge ? (
+        <Text variant="caption" style={{ color: fg }}>
+          · {badge}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -229,10 +240,13 @@ export function MultiChipGroup<T extends string>({
   options,
   values,
   onToggle,
+  badgeOf,
 }: {
   options: readonly { value: T; label: string; swatch?: string }[];
   values: readonly T[];
   onToggle: (value: T) => void;
+  /** Optional badge per selected value, e.g. "Main" on the first colour. */
+  badgeOf?: (value: T) => string | undefined;
 }) {
   const t = useTheme();
   return (
@@ -243,6 +257,7 @@ export function MultiChipGroup<T extends string>({
           label={o.label}
           swatch={o.swatch}
           selected={values.includes(o.value)}
+          badge={values.includes(o.value) ? badgeOf?.(o.value) : undefined}
           onPress={() => onToggle(o.value)}
         />
       ))}
@@ -280,12 +295,15 @@ export function TagConfirmRow({
         borderColor: flagged ? t.colours.borderStrong : 'transparent',
       }}
     >
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: t.space.sm }}>
-        <Text variant="heading" accessibilityRole="header">
-          {label}
-        </Text>
+      <View
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={note ? `${label}, ${note.toLowerCase()}` : label}
+        style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: t.space.sm }}
+      >
+        <Text variant="heading">{label}</Text>
         {note ? (
-          <Text variant="label" style={{ color: t.colours.accent }}>
+          <Text variant="label" importantForAccessibility="no" accessibilityElementsHidden>
             {note}
           </Text>
         ) : null}
