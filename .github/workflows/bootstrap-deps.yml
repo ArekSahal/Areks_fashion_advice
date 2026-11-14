@@ -32,6 +32,7 @@ jobs:
         @react-native-async-storage/async-storage react-native-url-polyfill
         @supabase/supabase-js @expo/vector-icons
         expo-image-picker expo-image-manipulator
+        @mediapipe/tasks-vision
       DEV_DEPS: 'typescript @types/react eslint eslint-config-expo vitest'
     steps:
       - uses: actions/checkout@v5
