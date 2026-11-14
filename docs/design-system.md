@@ -87,6 +87,10 @@ Planned for M1 (build them once, here, then reuse): `ColourSwatch`, `Sheet` (bot
   the user seeing the tags at least once.
 - **Shop links:** always labelled "Shop link · we may earn a commission".
 
+## References
+Owner-supplied mockups and screenshots live in [`design-references/`](design-references/README.md). They are inspiration,
+not rules: this file stays the source of truth until the owners decide on a change.
+
 ## Owner decisions
 - 2026-11-11: keep the warm paper + clay colours for now.
 - 2026-11-11: the app is called **Cloey** in the UI (app name, scheme `cloey://`).
