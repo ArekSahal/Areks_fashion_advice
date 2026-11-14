@@ -47,8 +47,8 @@ export default function Add() {
     prefetchFaceDetector();
   }, []);
 
+  // Reset in finish() (an event handler); here we only schedule the switch to the slow message.
   useEffect(() => {
-    setSlowPrepare(false);
     if (step !== 'preparing') return;
     const timer = setTimeout(() => setSlowPrepare(true), SLOW_PREPARE_MS);
     return () => clearTimeout(timer);
@@ -66,6 +66,7 @@ export default function Add() {
 
   function finish(next: Step = 'idle') {
     busyRef.current = next !== 'idle';
+    setSlowPrepare(false);
     setStep(next);
     if (next === 'idle') setSource(null);
   }

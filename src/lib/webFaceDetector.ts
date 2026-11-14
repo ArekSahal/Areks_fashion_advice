@@ -28,7 +28,6 @@ type Vision = typeof import('@mediapipe/tasks-vision');
 /** The browser's native import() for a same-origin path. Metro only bundles literal module names, so it's hidden. */
 function importSameOrigin(path: string): Promise<unknown> {
   if (!isSameOriginPath(path)) return Promise.reject(new Error('Refusing to import a cross-origin module'));
-  // eslint-disable-next-line no-new-func
   return (new Function('path', 'return import(path)') as (p: string) => Promise<unknown>)(path);
 }
 
