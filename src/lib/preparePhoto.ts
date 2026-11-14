@@ -21,9 +21,15 @@ async function encode(uri: string, width: number, height: number, maxSide: numbe
   return { uri: result.uri, width: result.width, height: result.height, data: base64ToArrayBuffer(result.base64) };
 }
 
-/** Native: downscale and re-encode to WebP with expo-image-manipulator, plus a small thumbnail. */
+/**
+ * Native: downscale and re-encode to WebP with expo-image-manipulator, plus a small thumbnail.
+ *
+ * TODO(#26): blur faces on the device with ML Kit face detection (docs/ai-providers.md §4). That needs an
+ * Expo development build (native module), so for now native reports `skipped`: process-image leaves
+ * faces_blurred_at unset and tag-item asks for "Let AI see faces" consent before sending the photo to the AI.
+ */
 export async function preparePhoto(asset: ImagePickerAsset): Promise<PreparedPhoto> {
   const clean = await encode(asset.uri, asset.width, asset.height, CLEAN_MAX_SIDE, CLEAN_QUALITY);
   const thumb = await encode(clean.uri, clean.width, clean.height, THUMB_MAX_SIDE, THUMB_QUALITY);
-  return { format: 'webp', clean: clean.data, thumb: thumb.data };
+  return { format: 'webp', faceCheck: 'skipped', clean: clean.data, thumb: thumb.data };
 }

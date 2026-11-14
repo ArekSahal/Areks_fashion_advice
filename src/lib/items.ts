@@ -56,7 +56,7 @@ export async function addItemFromPhoto(userId: string, photo: PreparedPhoto): Pr
   }
 
   const { data, error } = await supabase.functions.invoke<{ item_id: string }>('process-image', {
-    body: { upload_id: uploadId, format: photo.format },
+    body: { upload_id: uploadId, format: photo.format, face_check: photo.faceCheck },
   });
   if (error) throw error;
   if (!data?.item_id) throw new Error('Empty response');

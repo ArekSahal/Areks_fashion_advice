@@ -1,11 +1,15 @@
 // Add-item photo pipeline (docs/architecture.md → Storage, Key flows).
 // The app re-encodes the photo on the device (drops EXIF/GPS), uploads it plus a thumbnail to
-// uploads-quarantine/{user_id}/{upload_id}[.thumb].{webp|jpg} and calls this function with { upload_id, format }.
+// uploads-quarantine/{user_id}/{upload_id}[.thumb].{webp|jpg} and calls this function with
+// { upload_id, format, face_check }.
 // Here we: check the caller → download with the service role → sniff and validate the bytes (never trusting the
 // client) → strip any remaining metadata → enforce size limits → optional background removal → write
 // item-photos/{user_id}/{item_id}/clean.* and thumb.* → insert the clothing_items row → delete the quarantine copies.
-// Face blur is a later step (before tag-item sends photos to an AI provider).
+// Faces are blurred on the device before upload (web: MediaPipe; native: not yet). If the app reports that the
+// face step ran (face_check 'blurred' or 'none'), the row gets faces_blurred_at = now(), which lets tag-item send
+// the photo to the AI without face consent. Clients can't set that column themselves (column grants).
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { facesBlurredAt } from '../_shared/face-check.ts';
 import { ImageFormatError, sanitizeImage, type ImageFormat } from '../_shared/sanitize-image.ts';
 import { logUsage, usageLast24h } from '../_shared/usage.ts';
 
@@ -161,7 +165,13 @@ Deno.serve(async (req) => {
 
     const { error: insertError } = await admin
       .from('clothing_items')
-      .insert({ id: itemId, owner_id: userId, image_path: imagePath, thumb_path: thumbPath });
+      .insert({
+        id: itemId,
+        owner_id: userId,
+        image_path: imagePath,
+        thumb_path: thumbPath,
+        faces_blurred_at: facesBlurredAt(body?.face_check),
+      });
     if (insertError) throw insertError;
 
     return json({ item_id: itemId });
