@@ -13,8 +13,9 @@ const PKG = 'node_modules/@mediapipe/tasks-vision';
 const OUT = 'public/mediapipe';
 const MODEL_FILE = 'blaze_face_short_range.tflite';
 const MODEL_URL = `https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/${MODEL_FILE}`;
-// SHA-256 of MODEL_URL, recorded from the first CI run (the agent sandbox can't reach storage.googleapis.com).
-const MODEL_SHA256 = '';
+// SHA-256 of MODEL_URL (229,746 bytes), recorded from the first CI run on PR #42 (the agent sandbox can't reach
+// storage.googleapis.com). If Google ever changes the file, the build fails until someone checks it and updates this.
+const MODEL_SHA256 = 'b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f';
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => {
@@ -35,15 +36,13 @@ if (!wasmFiles.includes('vision_wasm_internal.wasm')) fail('vision_wasm_internal
 
 const modelPath = join(OUT, MODEL_FILE);
 let model = existsSync(modelPath) ? readFileSync(modelPath) : null;
-if (!model || (MODEL_SHA256 && sha256(model) !== MODEL_SHA256)) {
+if (!model || sha256(model) !== MODEL_SHA256) {
   const res = await fetch(MODEL_URL);
   if (!res.ok) fail(`model download failed: HTTP ${res.status}`);
   model = Buffer.from(await res.arrayBuffer());
 }
 const hash = sha256(model);
-if (!MODEL_SHA256) {
-  console.log(`::warning::vendor-mediapipe: no MODEL_SHA256 recorded yet; downloaded model sha256=${hash}`);
-} else if (hash !== MODEL_SHA256) {
+if (hash !== MODEL_SHA256) {
   fail(`model sha256 ${hash} does not match the pinned ${MODEL_SHA256}`);
 }
 writeFileSync(modelPath, model);
