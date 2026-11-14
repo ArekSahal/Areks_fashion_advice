@@ -21,7 +21,7 @@ const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'],
 
 /**
  * Add-item flow (M1c): choose a photo (library first, camera second) → resize + re-encode → upload →
- * process-image → wardrobe. Confirming AI tags is the next step (separate screen).
+ * process-image → confirm tags (app/confirm-tags.tsx) → wardrobe.
  * Choosing from the library never asks for camera access (issue #20).
  */
 export default function Add() {
@@ -60,11 +60,11 @@ export default function Add() {
     }
     finish('uploading');
     try {
-      await addItemFromPhoto(userId, photo);
+      const itemId = await addItemFromPhoto(userId, photo);
       setPending(null);
       setPreview(null);
       finish();
-      router.navigate('/');
+      router.push({ pathname: '/confirm-tags', params: { id: itemId } });
     } catch {
       setPending(photo);
       finish();

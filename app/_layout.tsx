@@ -20,6 +20,7 @@ function RootNavigator() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.colours.background } }}>
       <Stack.Protected guard={!!session && !recovering}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="confirm-tags" options={{ presentation: 'fullScreenModal' }} />
       </Stack.Protected>
       {/* Signed in through a password-reset link: set a new password before entering the app. */}
       <Stack.Protected guard={!!session && recovering}>

@@ -139,8 +139,38 @@ export function TextField({ label, error, hint, ...input }: TextFieldProps) {
   );
 }
 
-/** Selectable pill for filters, tags and single choices. */
-export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+/**
+ * Garment colour dot. The hex is taxonomy data (src/lib/taxonomy.ts), not a UI colour, so it always sits on a
+ * borderStrong ring to keep white and black visible in both modes.
+ */
+export function ColourSwatch({ hex, size = 16 }: { hex: string; size?: number }) {
+  const t = useTheme();
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        borderWidth: 1,
+        borderColor: t.colours.borderStrong,
+        backgroundColor: hex,
+      }}
+    />
+  );
+}
+
+/** Selectable pill for filters, tags and single choices. `swatch` adds a garment colour dot before the label. */
+export function Chip({
+  label,
+  selected,
+  onPress,
+  swatch,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  swatch?: string;
+}) {
   const t = useTheme();
   return (
     <Pressable
@@ -151,7 +181,9 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
       hitSlop={(t.touchTarget - 36) / 2}
       style={{
         minHeight: 36,
-        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: t.space.xs,
         paddingHorizontal: t.space.md,
         borderRadius: t.radius.pill,
         borderWidth: 1,
@@ -159,6 +191,7 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
         backgroundColor: selected ? t.colours.accent : 'transparent',
       }}
     >
+      {swatch ? <ColourSwatch hex={swatch} /> : null}
       <Text variant="label" style={{ color: selected ? t.colours.onAccent : t.colours.text }}>
         {label}
       </Text>
@@ -187,6 +220,82 @@ export function ChipGroup<T extends string>({
           onPress={() => onChange(o.value === value ? null : o.value)}
         />
       ))}
+    </View>
+  );
+}
+
+/** Multi-choice row of chips (colours, seasons…). The caller decides order and limits. */
+export function MultiChipGroup<T extends string>({
+  options,
+  values,
+  onToggle,
+}: {
+  options: readonly { value: T; label: string; swatch?: string }[];
+  values: readonly T[];
+  onToggle: (value: T) => void;
+}) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.space.sm }}>
+      {options.map((o) => (
+        <Chip
+          key={o.value}
+          label={o.label}
+          swatch={o.swatch}
+          selected={values.includes(o.value)}
+          onPress={() => onToggle(o.value)}
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * One AI tag field on the confirm-tags screen. `check` (low confidence) gets a dotted border and "Check this";
+ * `pick` (left empty) asks the user to choose. Children are the chips.
+ */
+export function TagConfirmRow({
+  label,
+  status = 'ok',
+  hint,
+  children,
+}: {
+  label: string;
+  status?: 'ok' | 'check' | 'pick';
+  hint?: string;
+  children: ReactNode;
+}) {
+  const t = useTheme();
+  const flagged = status !== 'ok';
+  const note = status === 'check' ? 'Check this' : status === 'pick' ? 'Please pick' : null;
+  return (
+    <View
+      style={{
+        alignSelf: 'stretch',
+        gap: t.space.sm,
+        padding: t.space.md,
+        borderRadius: t.radius.md,
+        borderWidth: 1,
+        borderStyle: flagged ? 'dotted' : 'solid',
+        borderColor: flagged ? t.colours.borderStrong : 'transparent',
+      }}
+    >
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: t.space.sm }}>
+        <Text variant="heading" accessibilityRole="header">
+          {label}
+        </Text>
+        {note ? (
+          <Text variant="label" style={{ color: t.colours.accent }}>
+            {note}
+          </Text>
+        ) : null}
+      </View>
+      {hint ? (
+        <Text variant="caption" muted>
+          {hint}
+        </Text>
+      ) : null}
+      {children}
     </View>
   );
 }
