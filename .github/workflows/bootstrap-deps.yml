@@ -32,7 +32,8 @@ jobs:
         @react-native-async-storage/async-storage react-native-url-polyfill
         @supabase/supabase-js @expo/vector-icons
         expo-image-picker expo-image-manipulator
-        @mediapipe/tasks-vision
+      # Not listed (pinned by hand in package.json, never re-resolved): @mediapipe/tasks-vision. Its version must
+      # match the self-hosted runtime (scripts/vendor-mediapipe.mjs); bump it deliberately.
       DEV_DEPS: 'typescript @types/react eslint eslint-config-expo vitest'
     steps:
       - uses: actions/checkout@v5

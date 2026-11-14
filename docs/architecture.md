@@ -76,11 +76,13 @@ readable by clients or kept.
 faces must be blurred unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits are the common case, so
 this is the default path, not an edge case. Faces are blurred on the device before upload
 (`docs/ai-providers.md` §4), so no unblurred photo leaves the device for detection:
-- **Web:** MediaPipe face detector (BlazeFace short-range, `@mediapipe/tasks-vision`) in the browser, loaded lazily
-  the first time someone adds an item (library and WebAssembly runtime imported from jsDelivr at runtime, pinned to the installed npm version; model from
-  Google's `storage.googleapis.com/mediapipe-models` bucket). It scans the whole photo plus overlapping tiles (small faces
-  in full-body selfies), and every padded face box is blurred on the canvas before encoding; the thumbnail is made from
-  the blurred photo. Logic in `src/lib/faceBlur.ts`.
+- **Web:** MediaPipe face detector (BlazeFace short-range, `@mediapipe/tasks-vision`, pinned exactly) in the browser,
+  prefetched when the Add tab opens. All files are self-hosted on the app's origin: `scripts/vendor-mediapipe.mjs` copies
+  the library and WebAssembly runtime from `node_modules` into `public/mediapipe/` before every web export, and downloads
+  the model from Google's `storage.googleapis.com/mediapipe-models` bucket at build time, checked against a pinned SHA-256.
+  The browser loads nothing from third-party hosts. It scans the whole photo plus overlapping tiles (small faces in
+  full-body selfies), and every padded face box is blurred on the canvas before encoding (at most 4 cells across the
+  face); the thumbnail is made from the blurred photo. Logic in `src/lib/faceBlur.ts`.
 - **Native:** not yet (ML Kit needs a development build); native uploads report `skipped`.
 - The app sends `face_check: 'blurred' | 'none' | 'skipped'` to `process-image`. Only `blurred` or `none` (detector ran,
   no face) sets `clothing_items.faces_blurred_at = now()` (service role); anything else, including a detector that

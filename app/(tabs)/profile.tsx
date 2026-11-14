@@ -158,7 +158,7 @@ export default function ProfileScreen() {
       <Section title="Privacy">
         <SwitchRow
           label="Let AI see faces in my photos"
-          description="Off: faces are blurred before any photo is analysed. On: slightly better outfit analysis for mirror selfies."
+          description="Cloey blurs faces in item photos on your device before upload. Off: photos we couldn't check for faces aren't sent to AI. On: AI may see faces in photos we couldn't check, and in outfit photos."
           value={profile.consent_face_analysis}
           onChange={(v) => save({ consent_face_analysis: v })}
         />

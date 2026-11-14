@@ -31,8 +31,8 @@ function draw(source: CanvasImageSource, width: number, height: number, maxSide:
 }
 
 /** Shrinks the region to a few pixels and stretches it back: a strong blur that works in every browser. */
-function blurRegion(canvas: HTMLCanvasElement, region: Box) {
-  const cells = blurCells(region);
+function blurRegion(canvas: HTMLCanvasElement, region: Box, faceWidth: number) {
+  const cells = blurCells(region, faceWidth);
   const tiny = document.createElement('canvas');
   tiny.width = cells.width;
   tiny.height = cells.height;
@@ -53,7 +53,7 @@ function blurRegion(canvas: HTMLCanvasElement, region: Box) {
 async function blurFaces(canvas: HTMLCanvasElement): Promise<FaceCheck> {
   let boxes: Box[];
   try {
-    boxes = detectFaces(await loadFaceDetector(), canvas);
+    boxes = await detectFaces(await loadFaceDetector(), canvas);
   } catch (e) {
     console.warn('Face detection unavailable; uploading without the face-blurred mark', e);
     return 'skipped';
@@ -65,7 +65,7 @@ async function blurFaces(canvas: HTMLCanvasElement): Promise<FaceCheck> {
       const region = padBox(box, canvas.width, canvas.height);
       if (!region) continue;
       found += 1;
-      blurRegion(canvas, region);
+      blurRegion(canvas, region, box.width);
       blurred += 1;
     }
   } catch (e) {
@@ -73,6 +73,11 @@ async function blurFaces(canvas: HTMLCanvasElement): Promise<FaceCheck> {
     return 'skipped';
   }
   return faceCheckResult({ detectorRan: true, found, blurred });
+}
+
+/** Starts loading the face detector in the background (called when the Add tab opens). Errors surface later. */
+export function prefetchFaceDetector(): void {
+  loadFaceDetector().catch(() => undefined);
 }
 
 /**

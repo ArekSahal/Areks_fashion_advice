@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { facesBlurredAt } from '../../supabase/functions/_shared/face-check';
+import { faceCheckLabel, facesBlurredAt } from '../../supabase/functions/_shared/face-check';
 
 describe('facesBlurredAt', () => {
   const now = new Date('2026-11-14T10:00:00Z');
@@ -14,6 +14,17 @@ describe('facesBlurredAt', () => {
     for (const value of ['skipped', undefined, null, '', 'BLURRED', true, 1, ['blurred'], { blurred: true }]) {
       expect(facesBlurredAt(value, now)).toBeNull();
     }
+  });
+});
+
+describe('faceCheckLabel', () => {
+  it('logs known values, and never echoes anything else', () => {
+    expect(faceCheckLabel('blurred')).toBe('blurred');
+    expect(faceCheckLabel('none')).toBe('none');
+    expect(faceCheckLabel('skipped')).toBe('skipped');
+    expect(faceCheckLabel(undefined)).toBe('missing');
+    expect(faceCheckLabel('<script>')).toBe('invalid');
+    expect(faceCheckLabel({ a: 1 })).toBe('invalid');
   });
 });
 

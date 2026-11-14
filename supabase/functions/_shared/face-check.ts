@@ -7,6 +7,12 @@
 
 export const FACE_FREE_CHECKS = ['blurred', 'none'] as const;
 
+/** The reported value for logs: one of the known values, 'missing', or 'invalid' (never echoes client input). */
+export function faceCheckLabel(faceCheck: unknown): string {
+  if (faceCheck === undefined || faceCheck === null) return 'missing';
+  return faceCheck === 'blurred' || faceCheck === 'none' || faceCheck === 'skipped' ? faceCheck : 'invalid';
+}
+
 export function facesBlurredAt(faceCheck: unknown, now: Date = new Date()): string | null {
   return typeof faceCheck === 'string' && (FACE_FREE_CHECKS as readonly string[]).includes(faceCheck)
     ? now.toISOString()

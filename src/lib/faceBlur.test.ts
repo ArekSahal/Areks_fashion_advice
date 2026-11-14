@@ -1,8 +1,15 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { blurCells, detectionTiles, faceCheckResult, fromTile, padBox } from './faceBlur';
-import { MEDIAPIPE_MODULE_URL, MEDIAPIPE_VERSION, MEDIAPIPE_WASM_URL } from './webFaceDetector';
+import {
+  blurCells,
+  detectionTiles,
+  faceCheckResult,
+  fromTile,
+  isSameOriginPath,
+  mediapipeUrls,
+  padBox,
+} from './faceBlur';
 
 describe('padBox', () => {
   it('pads every side, with extra room above for hair', () => {
@@ -69,11 +76,12 @@ describe('fromTile', () => {
 });
 
 describe('blurCells', () => {
-  it('keeps about six cells across the face', () => {
-    expect(blurCells({ x: 0, y: 0, width: 120, height: 150 })).toEqual({ width: 6, height: 8 });
+  it('puts at most four cells across the detected face, sized from the unpadded box', () => {
+    // Face 100 px wide, padded region 170 × 190 px → 25 px cells → 6 × 7 cells over the region, 4 over the face.
+    expect(blurCells({ x: 0, y: 0, width: 170, height: 190 }, 100)).toEqual({ width: 6, height: 7 });
   });
   it('never goes below one pixel', () => {
-    expect(blurCells({ x: 0, y: 0, width: 2, height: 1 })).toEqual({ width: 2, height: 1 });
+    expect(blurCells({ x: 0, y: 0, width: 2, height: 1 }, 2)).toEqual({ width: 2, height: 1 });
   });
 });
 
@@ -90,20 +98,32 @@ describe('faceCheckResult (fails closed)', () => {
   });
 });
 
-describe('MediaPipe runtime download', () => {
-  it('pins the WebAssembly URL to the installed package version', () => {
-    const file = join(process.cwd(), 'node_modules/@mediapipe/tasks-vision/package.json');
-    const installed: string = JSON.parse(readFileSync(file, 'utf8')).version;
-    expect(installed, 'update MEDIAPIPE_VERSION in webFaceDetector.ts').toBe(MEDIAPIPE_VERSION);
-    expect(MEDIAPIPE_WASM_URL).toContain(`@${MEDIAPIPE_VERSION}/`);
+describe('self-hosted MediaPipe files', () => {
+  it('builds same-origin URLs under the Pages baseUrl', () => {
+    expect(mediapipeUrls('/Areks_fashion_advice')).toEqual({
+      module: '/Areks_fashion_advice/mediapipe/vision_bundle.mjs',
+      wasm: '/Areks_fashion_advice/mediapipe/wasm',
+      model: '/Areks_fashion_advice/mediapipe/blaze_face_short_range.tflite',
+    });
+    expect(mediapipeUrls(undefined).module).toBe('/mediapipe/vision_bundle.mjs');
+    expect(mediapipeUrls('base/').wasm).toBe('/base/mediapipe/wasm');
+    for (const url of Object.values(mediapipeUrls('/Areks_fashion_advice'))) expect(isSameOriginPath(url)).toBe(true);
   });
 
-  it('the package ships the WebAssembly runtime the browser loads from that URL', () => {
-    const wasmDir = join(process.cwd(), 'node_modules/@mediapipe/tasks-vision/wasm');
-    expect(existsSync(wasmDir), 'node_modules/@mediapipe/tasks-vision/wasm missing').toBe(true);
-    expect(readdirSync(wasmDir)).toContain('vision_wasm_internal.wasm');
-    const lib = join(process.cwd(), 'node_modules/@mediapipe/tasks-vision/vision_bundle.mjs');
-    expect(existsSync(lib), 'vision_bundle.mjs missing').toBe(true);
-    expect(MEDIAPIPE_MODULE_URL.endsWith('/vision_bundle.mjs')).toBe(true);
+  it('only allows same-origin paths to be imported', () => {
+    expect(isSameOriginPath('/x/y.mjs')).toBe(true);
+    for (const bad of ['https://cdn.example/x.mjs', '//cdn.example/x.mjs', 'x.mjs', 'data:text/javascript,1', '/\\evil']) {
+      expect(isSameOriginPath(bad)).toBe(false);
+    }
+  });
+
+  it('pins @mediapipe/tasks-vision exactly, and the package ships the files the build copies', () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+    const pinned: string = pkg.dependencies['@mediapipe/tasks-vision'];
+    expect(pinned).toMatch(/^\d+\.\d+\.\d+$/);
+    const dir = join(process.cwd(), 'node_modules/@mediapipe/tasks-vision');
+    expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).version).toBe(pinned);
+    expect(existsSync(join(dir, 'vision_bundle.mjs'))).toBe(true);
+    expect(readdirSync(join(dir, 'wasm'))).toContain('vision_wasm_internal.wasm');
   });
 });

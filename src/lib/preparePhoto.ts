@@ -21,6 +21,9 @@ async function encode(uri: string, width: number, height: number, maxSide: numbe
   return { uri: result.uri, width: result.width, height: result.height, data: base64ToArrayBuffer(result.base64) };
 }
 
+/** Native: no on-device face detector yet (see the TODO below), so nothing to prefetch. */
+export function prefetchFaceDetector(): void {}
+
 /**
  * Native: downscale and re-encode to WebP with expo-image-manipulator, plus a small thumbnail.
  *

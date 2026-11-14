@@ -1,11 +1,11 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Platform, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { addItemFromPhoto } from '@/lib/items';
 import type { PreparedPhoto } from '@/lib/photo';
-import { preparePhoto } from '@/lib/preparePhoto';
+import { prefetchFaceDetector, preparePhoto } from '@/lib/preparePhoto';
 import { Button, Screen, Text, useTheme } from '@/ui';
 
 type Step = 'idle' | 'preparing' | 'uploading';
@@ -16,6 +16,10 @@ const STEP_LABEL: Record<Step, string> = {
   preparing: 'Getting your photo ready…',
   uploading: 'Adding it to your wardrobe…',
 };
+
+/** Shown when 'preparing' takes a while (on web the face detector may still be loading). */
+const SLOW_PREPARE_LABEL = 'Blurring faces to keep your photo private…';
+const SLOW_PREPARE_MS = 3000;
 
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1, exif: false };
 
@@ -36,6 +40,19 @@ export default function Add() {
   const [pending, setPending] = useState<PreparedPhoto | null>(null);
   const busyRef = useRef(false);
   const busy = step !== 'idle';
+  const [slowPrepare, setSlowPrepare] = useState(false);
+
+  // Web: start loading the on-device face detector now, so it's usually ready when a photo is picked.
+  useEffect(() => {
+    prefetchFaceDetector();
+  }, []);
+
+  useEffect(() => {
+    setSlowPrepare(false);
+    if (step !== 'preparing') return;
+    const timer = setTimeout(() => setSlowPrepare(true), SLOW_PREPARE_MS);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   // Coming back to the tab starts fresh (no stale error from an earlier attempt).
   useFocusEffect(
@@ -157,7 +174,7 @@ export default function Add() {
       ) : null}
 
       <Text muted accessibilityLiveRegion="polite">
-        {STEP_LABEL[step]}
+        {step === 'preparing' && slowPrepare ? SLOW_PREPARE_LABEL : STEP_LABEL[step]}
       </Text>
 
       {message ? (

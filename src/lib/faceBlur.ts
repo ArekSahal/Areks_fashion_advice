@@ -68,13 +68,44 @@ export function fromTile(box: Box, tile: Box, scale = 1): Box {
 /** Longest side a tile is drawn at before detection. */
 export const DETECTOR_INPUT_MAX = 384;
 
+/** At most this many blur cells across the detected (unpadded) face. */
+export const MAX_CELLS_ACROSS_FACE = 4;
+
 /**
- * Size of the tiny copy a face region is shrunk to before it is scaled back up (a strong blur that works in
- * every browser, unlike `ctx.filter`, which Safari ignores). About 6 cells across, so no facial detail survives.
+ * Size of the tiny copy a padded face region is shrunk to before it is scaled back up (a strong blur that works
+ * in every browser, unlike `ctx.filter`, which Safari ignores). Cells are sized from the detected face width,
+ * not the padded region, so the face itself gets at most `cellsAcrossFace` cells and no facial detail survives.
  */
-export function blurCells(region: Box, cellsAcross = 6): { width: number; height: number } {
-  const cell = Math.max(1, region.width / cellsAcross);
-  return { width: Math.max(1, Math.round(region.width / cell)), height: Math.max(1, Math.round(region.height / cell)) };
+export function blurCells(
+  region: Box,
+  faceWidth: number,
+  cellsAcrossFace = MAX_CELLS_ACROSS_FACE,
+): { width: number; height: number } {
+  const cell = Math.max(1, faceWidth / cellsAcrossFace);
+  return {
+    width: Math.max(1, Math.floor(region.width / cell)),
+    height: Math.max(1, Math.floor(region.height / cell)),
+  };
+}
+
+/** Folder (under the app's baseUrl) the build copies the MediaPipe runtime and model into (scripts/vendor-mediapipe.mjs). */
+export const MEDIAPIPE_DIR = 'mediapipe';
+export const FACE_MODEL_FILE = 'blaze_face_short_range.tflite';
+
+/**
+ * Same-origin URLs of the self-hosted MediaPipe files. `baseUrl` is the Expo web baseUrl ("/Areks_fashion_advice" on
+ * Pages, "" in local dev). Nothing is loaded from a third-party host.
+ */
+export function mediapipeUrls(baseUrl: string | undefined): { module: string; wasm: string; model: string } {
+  const base = (baseUrl ?? '').replace(/\/+$/, '');
+  const prefix = base && !base.startsWith('/') ? `/${base}` : base;
+  const dir = `${prefix}/${MEDIAPIPE_DIR}`;
+  return { module: `${dir}/vision_bundle.mjs`, wasm: `${dir}/wasm`, model: `${dir}/${FACE_MODEL_FILE}` };
+}
+
+/** True only for a same-origin absolute path ("/x"), never a full URL or a protocol-relative "//host" one. */
+export function isSameOriginPath(url: string): boolean {
+  return url.startsWith('/') && !url.startsWith('//') && !url.includes(':') && !url.includes('\\');
 }
 
 /**

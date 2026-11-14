@@ -5,6 +5,7 @@ node_modules/
 .expo/
 dist/
 web-build/
+public/mediapipe/
 .DS_Store
 supabase/.temp/
 expo-env.d.ts
