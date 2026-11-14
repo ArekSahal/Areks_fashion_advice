@@ -9,7 +9,8 @@ How to use them: look at what the reference does well, compare it with our desig
 `agent:ux` issue. Don't copy names, logos or copy text from a reference.
 
 ## 2026-11-14: navy + serif mockup
-![Three phone screens: welcome, marketplace list, product detail](2026-11-14-navy-serif-mockup.png)
+![Three phone screens: welcome, marketplace list, product detail](2026-11-14-navy-serif-mockup-1.png)
+![Two phone screens: schedule with week picker and event list, profile with stats card and menu](2026-11-14-navy-serif-mockup-2.png)
 
 Added by @Yolkem23. "Woven" is just the mockup's name, not ours (our app is Cloey).
 
@@ -22,7 +23,12 @@ What stands out:
   (back, favourite).
 - **Layout:** hero card with a photo and overlaid serif title; list rows with a square photo, title, price and distance;
   detail page with a large photo on top, seller row with rating, size picker, one full-width primary action at the bottom.
+- **Schedule:** serif screen title, a week strip with the selected day as a filled navy circle, event rows with an
+  outline icon, title, time and place, and a rounded photo thumbnail on the right.
+- **Profile:** round avatar with initials, serif name, a short playful tagline; a soft sage stats card with three serif
+  numbers (garments reused, items mended, CO₂ saved); a plain menu list with outline icons, hairline dividers and chevrons.
 - **Navigation:** bottom tab bar with outline icons and labels, selected tab in navy.
+- **Accents:** small touches beyond navy: sage for the stats card, warm beige for the avatar and photo wells.
 - **Photography:** soft, warm, low-contrast, garments on hangers or flat on calm backgrounds.
 
 Open questions for the UX agent: does navy replace clay as the accent, or sit alongside it? Does a serif display
