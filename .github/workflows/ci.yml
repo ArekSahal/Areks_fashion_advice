@@ -51,4 +51,6 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: https://emnkjfoccluygilkebbz.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_4kGFl0Nv7iTREHDc9wAfSw_5-Gqavom
-        run: npm run build:web
+        run: |
+          npm run build:web
+          test -f dist/mediapipe/wasm/vision_wasm_internal.wasm || { echo "::error::self-hosted face detector missing from dist"; exit 1; }

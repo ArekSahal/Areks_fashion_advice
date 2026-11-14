@@ -73,8 +73,22 @@ under 50 calls/24 h; each call is logged in `api_usage` first and skipped if it 
 readable by clients or kept.
 
 **Faces:** before any photo goes to an AI provider (tagging, outfit analysis, style analysis, garment detection),
-`process-image` detects faces and blurs them unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits
-are the common case, so this is the default path, not an edge case.
+faces must be blurred unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits are the common case, so
+this is the default path, not an edge case. Faces are blurred on the device before upload
+(`docs/ai-providers.md` §4), so no unblurred photo leaves the device for detection:
+- **Web:** MediaPipe face detector (BlazeFace short-range, `@mediapipe/tasks-vision`, pinned exactly) in the browser,
+  prefetched when the Add tab opens. All files are self-hosted on the app's origin: `scripts/vendor-mediapipe.mjs` copies
+  the library and WebAssembly runtime from `node_modules` into `public/mediapipe/` before every web export, and downloads
+  the model from Google's `storage.googleapis.com/mediapipe-models` bucket at build time, checked against a pinned SHA-256.
+  The browser loads nothing from third-party hosts. It scans the whole photo plus overlapping tiles (small faces in
+  full-body selfies), and every padded face box is blurred on the canvas before encoding (at most 4 cells across the
+  face); the thumbnail is made from the blurred photo. Logic in `src/lib/faceBlur.ts`.
+- **Native:** not yet (ML Kit needs a development build); native uploads report `skipped`.
+- The app sends `face_check: 'blurred' | 'none' | 'skipped'` to `process-image`. Only `blurred` or `none` (detector ran,
+  no face) sets `clothing_items.faces_blurred_at = now()` (service role); anything else, including a detector that
+  failed to load, leaves it unset (fail closed), and `tag-item` then needs consent. Clients can't write
+  `faces_blurred_at` (column grants, tested in `src/lib/faceCheck.test.ts`). The mark is the app's own report:
+  it guards honest clients, not a modified one (a server backstop such as Cloud Vision would close that gap).
 
 ## Key flows
 **Add item (M1, target < 30 s):** camera → client resize/re-encode → upload to `uploads-quarantine` → `process-image`
