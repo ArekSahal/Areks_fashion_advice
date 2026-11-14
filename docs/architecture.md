@@ -77,7 +77,7 @@ faces must be blurred unless `profiles.consent_face_analysis` is true. Mirror se
 this is the default path, not an edge case. Faces are blurred on the device before upload
 (`docs/ai-providers.md` §4), so no unblurred photo leaves the device for detection:
 - **Web:** MediaPipe face detector (BlazeFace short-range, `@mediapipe/tasks-vision`) in the browser, loaded lazily
-  the first time someone adds an item (WebAssembly runtime from jsDelivr, pinned to the installed version; model from
+  the first time someone adds an item (library and WebAssembly runtime imported from jsDelivr at runtime, pinned to the installed npm version; model from
   Google's `storage.googleapis.com/mediapipe-models` bucket). It scans the whole photo plus overlapping tiles (small faces
   in full-body selfies), and every padded face box is blurred on the canvas before encoding; the thumbnail is made from
   the blurred photo. Logic in `src/lib/faceBlur.ts`.

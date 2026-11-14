@@ -4,7 +4,10 @@
  * Detection runs fully in the browser: only code and model files are downloaded, the photo never leaves the device.
  *
  * Downloads (pinned):
- * - WebAssembly runtime: jsDelivr mirror of the npm package, same version as the installed package (checked by a test).
+ * - Library + WebAssembly runtime: jsDelivr mirror of the npm package, same version as the installed package
+ *   (checked by a test). The library is imported from the CDN at runtime instead of bundled: Metro can't bundle
+ *   it (its bundle contains a non-literal `import()`), and this keeps ~1 MB out of the app bundle. The npm
+ *   package is kept for the TypeScript types and to pin the version.
  * - Model: Google's official MediaPipe model bucket.
  */
 import type { FaceDetector } from '@mediapipe/tasks-vision';
@@ -13,11 +16,21 @@ import { fitWithin } from './photo';
 
 /** Must equal the installed @mediapipe/tasks-vision version (faceBlur.test.ts checks this). */
 export const MEDIAPIPE_VERSION = '1.2.3';
-export const MEDIAPIPE_WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
+const MEDIAPIPE_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}`;
+export const MEDIAPIPE_MODULE_URL = `${MEDIAPIPE_CDN}/vision_bundle.mjs`;
+export const MEDIAPIPE_WASM_URL = `${MEDIAPIPE_CDN}/wasm`;
 export const FACE_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
 
 const LOAD_TIMEOUT_MS = 20_000;
+
+type Vision = typeof import('@mediapipe/tasks-vision');
+
+/** A native browser `import()` that Metro leaves alone (it only bundles literal module names). */
+function importFromUrl(url: string): Promise<unknown> {
+  // eslint-disable-next-line no-new-func
+  return (new Function('url', 'return import(url)') as (u: string) => Promise<unknown>)(url);
+}
 
 let loading: Promise<FaceDetector> | null = null;
 
@@ -42,7 +55,7 @@ export function loadFaceDetector(): Promise<FaceDetector> {
   if (!loading) {
     loading = withTimeout(
       (async () => {
-        const { FaceDetector, FilesetResolver } = await import('@mediapipe/tasks-vision');
+        const { FaceDetector, FilesetResolver } = (await importFromUrl(MEDIAPIPE_MODULE_URL)) as Vision;
         const fileset = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
         return FaceDetector.createFromOptions(fileset, {
           baseOptions: { modelAssetPath: FACE_MODEL_URL, delegate: 'CPU' },

@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { blurCells, detectionTiles, faceCheckResult, fromTile, padBox } from './faceBlur';
-import { MEDIAPIPE_VERSION, MEDIAPIPE_WASM_URL } from './webFaceDetector';
+import { MEDIAPIPE_MODULE_URL, MEDIAPIPE_VERSION, MEDIAPIPE_WASM_URL } from './webFaceDetector';
 
 describe('padBox', () => {
   it('pads every side, with extra room above for hair', () => {
@@ -102,5 +102,8 @@ describe('MediaPipe runtime download', () => {
     const wasmDir = join(process.cwd(), 'node_modules/@mediapipe/tasks-vision/wasm');
     expect(existsSync(wasmDir), 'node_modules/@mediapipe/tasks-vision/wasm missing').toBe(true);
     expect(readdirSync(wasmDir)).toContain('vision_wasm_internal.wasm');
+    const lib = join(process.cwd(), 'node_modules/@mediapipe/tasks-vision/vision_bundle.mjs');
+    expect(existsSync(lib), 'vision_bundle.mjs missing').toBe(true);
+    expect(MEDIAPIPE_MODULE_URL.endsWith('/vision_bundle.mjs')).toBe(true);
   });
 });
