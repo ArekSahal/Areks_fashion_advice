@@ -65,8 +65,10 @@ on web and show photos as taken.
 ## 4. Face blur before any AI call
 - Phones: ML Kit face detection (Expo module available), blur on the device before upload.
 - Web: MediaPipe face detector in the browser (free, Apache-2.0).
-- Backstop for anything that skipped the device: Google Cloud Vision face detection in the Edge Function
-  (first 1,000/month free, then $1.50/1,000).
+- The web detector code and model are self-hosted on our Pages site and checked against a pinned SHA-256 (no CDN).
+- The server trusts the device's face report: a photo reported as "faces blurred" or "no faces found" may go to the AI
+  without consent. No Cloud Vision server check (see [`DECISIONS.md`](DECISIONS.md)). If the device reports nothing or
+  detection failed, the photo is not sent to the AI unless the user turned on "Let AI see faces".
 - Faces stay unblurred only if the user turned on "Let AI see faces" in Profile.
 
 ## What owners need to do if approved

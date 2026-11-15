@@ -57,7 +57,8 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
 - Free: **1,000 credits/month**, then **$0.007 per call** (≈ $7 per extra 1,000). Each call = 1 credit; product detail and
   product subscriptions are free.
 - Planning budget per feature (a target, not a hard limit): M6 recreate 600/month (incl. EU-fallback searches), wardrobe gaps 150,
-  "more like this" (`/v1/similar`) 150, buffer 100 (category/brand lookups, reporting).
+  "more like this" (`/v1/similar`) 150, buffer 100 (category/brand lookups, reporting). Until M6 ships, the M1.5 Shop may use
+  up to ~400 of the M6 share (see [`DECISIONS.md`](DECISIONS.md)).
 - One recreate request ≈ 3–5 garments ≈ 3–5 searches before cache. Target cache hit rate ≥ 40 % → ~2.5 credits per request
   → ~240 recreates/month on the free tier.
 - **No usage limits for now** (see [`DECISIONS.md`](DECISIONS.md), 2026-11-11). No per-user caps and no automatic stop. Calls past the free

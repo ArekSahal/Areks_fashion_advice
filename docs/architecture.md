@@ -78,7 +78,9 @@ shared secret from Vault, and it deletes every quarantine file older than 1 hour
 Each run returns and logs `{ removed, scanned, kept }`; history in `cron.job_run_details` and `net._http_response`.
 
 **Faces:** before any photo goes to an AI provider (tagging, outfit analysis, style analysis, garment detection),
-`process-image` detects faces and blurs them unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits
+faces are blurred on the device before upload unless `profiles.consent_face_analysis` is true. `process-image` trusts
+the device's face report ("blurred" / "none found") and sets `faces_blurred_at`; without a report and without consent the
+photo is not sent to the AI (see [`DECISIONS.md`](DECISIONS.md)). Mirror selfies of outfits
 are the common case, so this is the default path, not an edge case.
 
 ## Key flows
