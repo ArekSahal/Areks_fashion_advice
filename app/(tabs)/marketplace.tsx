@@ -9,14 +9,14 @@ const VIEWS = [
 ] as const satisfies readonly { value: MarketView; label: string }[];
 
 /**
- * Marketplace tab (docs/DECISIONS.md, 2026-11-15): second-hand from other users (M4) and the Channel3 Shop (M1.5).
+ * Market tab (docs/DECISIONS.md): second-hand from other users (M4) and the Channel3 Shop (M1.5).
  * Both are placeholders until those milestones ship.
  */
 export default function Marketplace() {
   const [view, setView] = useState<MarketView>('second_hand');
   return (
     <Screen>
-      <Text variant="title">Marketplace</Text>
+      <Text variant="title">Market</Text>
       <SegmentedControl options={VIEWS} value={view} onChange={setView} />
       {view === 'second_hand' ? (
         <EmptyState
