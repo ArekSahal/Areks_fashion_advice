@@ -47,7 +47,7 @@ export const radius = { sm: 6, md: 12, lg: 20, pill: 999 } as const;
 
 /**
  * Fonts. Display and title use Fraunces SemiBold (SIL OFL), loaded once in app/_layout.tsx; if it fails to load,
- * the platform falls back to the system font. Everything else uses the system sans for speed and dynamic type.
+ * text falls back to the platform default (system font on native, the browser's default serif on web). Everything else uses the system sans for speed and dynamic type.
  * No fontWeight on the serif styles: the file is already SemiBold, and a weight next to a custom family makes
  * Android fall back to the system font.
  */

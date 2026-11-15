@@ -38,7 +38,7 @@ white and black swatches stay visible in both modes.
 
 ## Typography (`theme.typography`)
 `display` and `title` use **Fraunces SemiBold** (SIL OFL, `@expo-google-fonts/fraunces/600SemiBold`, loaded once in
-`app/_layout.tsx`; falls back to the system font if it fails). Everything else uses the system font (San Francisco /
+`app/_layout.tsx`; falls back to the platform default if it fails). Everything else uses the system font (San Francisco /
 Roboto / system-ui on web): fast, native, scales with the user's text size. Don't use the serif below 18 pt.
 
 | Variant | Size / line | Weight | Use |

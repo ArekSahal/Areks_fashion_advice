@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { validateDisplayName } from '@/lib/authForm';
@@ -38,18 +39,21 @@ export default function ProfileScreen() {
   const [attempt, setAttempt] = useState(0);
   const [counts, setCounts] = useState<{ items: number; needsTags: number } | null>(null);
 
-  useEffect(() => {
-    if (!userId) return;
-    let active = true;
-    listMyItems()
-      .then((items) => {
-        if (active) setCounts({ items: items.length, needsTags: items.filter((i) => !i.tags_confirmed_at).length });
-      })
-      .catch(() => {}); // stats are a nice-to-have; the card shows dashes
-    return () => {
-      active = false;
-    };
-  }, [userId]);
+  // Refresh on every visit, so adding or tagging an item elsewhere shows up here.
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return;
+      let active = true;
+      listMyItems()
+        .then((items) => {
+          if (active) setCounts({ items: items.length, needsTags: items.filter((i) => !i.tags_confirmed_at).length });
+        })
+        .catch(() => {}); // stats are a nice-to-have; the card shows dashes
+      return () => {
+        active = false;
+      };
+    }, [userId]),
+  );
 
   useEffect(() => {
     if (!userId) return;

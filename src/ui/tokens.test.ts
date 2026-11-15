@@ -25,6 +25,7 @@ const PAIRS = [
   ['text', 'surfaceAccent'],
   ['textMuted', 'surfaceAccent'],
   ['accent', 'background'],
+  ['accent', 'surface'], // selected tab on the tab bar
   ['onAccent', 'accent'],
   ['onAccent', 'danger'],
   ['danger', 'background'],

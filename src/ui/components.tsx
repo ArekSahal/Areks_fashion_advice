@@ -392,7 +392,7 @@ export function StatCard({ stats }: { stats: readonly { label: string; value: nu
         <View
           key={s.label}
           accessible
-          accessibilityLabel={`${s.label}: ${s.value ?? 'unknown'}`}
+          accessibilityLabel={`${s.label}: ${s.value ?? 'loading'}`}
           style={{ flexGrow: 1, flexBasis: 80, gap: t.space.xxs }}
         >
           <Text variant="title">{s.value ?? '–'}</Text>
