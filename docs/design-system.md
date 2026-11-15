@@ -57,19 +57,23 @@ Roboto / system-ui on web): fast, native, scales with the user's text size. Don'
 - Photos: items **4:5**, outfits **3:4**, `md` radius, `surfaceSunken` behind background-removed images.
 
 ## Navigation (M1 onwards)
-Bottom tabs, max 4:
+Bottom tabs, max 5:
 1. **Wardrobe** (grid of items, filters)
 2. **Diary** (today's outfit + calendar)
 3. **Add** ("Choose from library" first, "Take photo" second; library never asks for camera access; target: item added in < 30 s)
-4. **Profile** (style analysis, settings, privacy)
+4. **Marketplace** (two views: **Second-hand** from other users, M4, and **Shop** from online stores via Channel3,
+   M1.5; see [`DECISIONS.md`](DECISIONS.md))
+5. **Profile** (style analysis, settings, privacy)
 
-Marketplace and "recreate an outfit" enter as screens inside Wardrobe/Profile until they earn their own tab.
+"Recreate an outfit" enters as a screen inside Wardrobe until it earns its own tab.
+Switching between views of one screen (Second-hand | Shop, Items | Outfits) uses `SegmentedControl`.
 Item and outfit detail screens push on top of the current tab. Camera and tag confirmation are full-screen modals.
 
 ## Components
 Available now in `@/ui`:
 - `Screen` (background, safe areas, padding; `scroll` and `centered` options)
 - `Text` (`variant`, `muted`, `tone`)
+- `SegmentedControl` (two or three views of one screen; selected segment filled with the accent)
 - `StatCard` (sage card with a row of big numbers, e.g. wardrobe stats on Profile)
 - `Button` (`primary` / `secondary` / `danger` for confirming destructive actions, `loading`, `disabled`)
 - `TextField` (label, hint, error; focus ring in accent)

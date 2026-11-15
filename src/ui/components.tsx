@@ -210,6 +210,59 @@ export function Chip({
   );
 }
 
+/**
+ * Switch between two or three views of the same screen (e.g. Second-hand | Shop, Items | Outfits).
+ * Full-width pill track; the selected segment is filled with the accent. Each segment is a 48pt touch target.
+ */
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  const t = useTheme();
+  return (
+    <View
+      accessibilityRole="tablist"
+      style={{
+        alignSelf: 'stretch',
+        flexDirection: 'row',
+        borderRadius: t.radius.pill,
+        borderWidth: 1,
+        borderColor: t.colours.borderStrong,
+      }}
+    >
+      {options.map((o) => {
+        const selected = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(o.value)}
+            style={{
+              flex: 1,
+              minHeight: t.touchTarget,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: t.space.md,
+              borderRadius: t.radius.pill,
+              backgroundColor: selected ? t.colours.accent : 'transparent',
+            }}
+          >
+            <Text variant="label" style={{ color: selected ? t.colours.onAccent : t.colours.text }}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /** Single-choice row of chips. `value` null = nothing selected; tapping the selected chip clears it. */
 export function ChipGroup<T extends string>({
   options,
