@@ -373,6 +373,38 @@ export function Section({ title, children }: { title?: string; children: ReactNo
   );
 }
 
+/** Soft sage card with a row of big numbers, e.g. wardrobe stats on Profile. `null` values show a dash. */
+export function StatCard({ stats }: { stats: readonly { label: string; value: number | null }[] }) {
+  const t = useTheme();
+  return (
+    <View
+      style={{
+        alignSelf: 'stretch',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: t.space.lg,
+        padding: t.space.lg,
+        borderRadius: t.radius.lg,
+        backgroundColor: t.colours.surfaceAccent,
+      }}
+    >
+      {stats.map((s) => (
+        <View
+          key={s.label}
+          accessible
+          accessibilityLabel={`${s.label}: ${s.value ?? 'loading'}`}
+          style={{ flexGrow: 1, flexBasis: 80, gap: t.space.xxs }}
+        >
+          <Text variant="title">{s.value ?? '–'}</Text>
+          <Text variant="caption" muted>
+            {s.label}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** Calm placeholder for empty lists, with one clear next step. */
 export function EmptyState({ title, body, action }: { title: string; body?: string; action?: ButtonProps }) {
   const t = useTheme();
