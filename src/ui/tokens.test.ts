@@ -22,6 +22,8 @@ const PAIRS = [
   ['textMuted', 'background'],
   ['textMuted', 'surface'],
   ['textMuted', 'surfaceSunken'],
+  ['text', 'surfaceAccent'],
+  ['textMuted', 'surfaceAccent'],
   ['accent', 'background'],
   ['onAccent', 'accent'],
   ['onAccent', 'danger'],

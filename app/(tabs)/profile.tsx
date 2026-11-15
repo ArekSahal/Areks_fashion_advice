@@ -10,9 +10,10 @@ import {
   type ProfileUpdate,
   type ShoppingPreference,
 } from '@/lib/profile';
+import { listMyItems } from '@/lib/items';
 import { saveJsonFile } from '@/lib/saveFile';
 import { supabase } from '@/lib/supabase';
-import { Button, ChipGroup, Screen, Section, SwitchRow, Text, TextField, useTheme } from '@/ui';
+import { Button, ChipGroup, Screen, Section, StatCard, SwitchRow, Text, TextField, useTheme } from '@/ui';
 
 const PREFERENCES = [
   { value: 'womenswear', label: 'Womenswear' },
@@ -35,6 +36,20 @@ export default function ProfileScreen() {
   const [deleting, setDeleting] = useState(false);
 
   const [attempt, setAttempt] = useState(0);
+  const [counts, setCounts] = useState<{ items: number; needsTags: number } | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    listMyItems()
+      .then((items) => {
+        if (active) setCounts({ items: items.length, needsTags: items.filter((i) => !i.tags_confirmed_at).length });
+      })
+      .catch(() => {}); // stats are a nice-to-have; the card shows dashes
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -126,6 +141,13 @@ export default function ProfileScreen() {
     <Screen scroll>
       <Text variant="title">Profile</Text>
       <Text muted>{session?.user.email}</Text>
+
+      <StatCard
+        stats={[
+          { label: 'Items', value: counts?.items ?? null },
+          { label: 'Needs tags', value: counts?.needsTags ?? null },
+        ]}
+      />
 
       {message ? (
         <Text tone={message.tone} accessibilityLiveRegion="polite">

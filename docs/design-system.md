@@ -4,13 +4,13 @@ _Owner: UX agent. 2026-11-10. Code: `src/ui/` (`tokens.ts`, `theme.ts`, `compone
 
 ## Feel
 **A calm, warm wardrobe where the clothes are the colour.** The UI is paper and ink; garment photos bring the colour.
-One accent (clay) marks the main action. No gradients, no heavy shadows, no decorative illustrations competing with photos.
+One accent (navy) marks the main action and selection; navy reads as a neutral next to clothes, like denim. No gradients, no heavy shadows, no decorative illustrations competing with photos.
 Tone of voice: a friendly stylist. Short, concrete, never judgmental ("Try it with the grey trousers", not "Wrong colours!").
 
 ## Rules for every screen
 1. Use `useTheme()` tokens and `@/ui` components. No hard-coded colours, font sizes, spacing or radii in feature code.
    PRs that break this are blocked by the UX review.
-2. One primary (clay) button per screen at most. Everything else is secondary or a plain row.
+2. One primary (navy) button per screen at most. Everything else is secondary or a plain row.
 3. Touch targets ≥ 48 pt. Every pressable has an `accessibilityLabel`.
 4. Light and dark mode both work before a PR is ready (check both in the Pages preview).
 5. Text must stay readable at the largest system text size. Don't fix heights on text containers.
@@ -26,8 +26,9 @@ Tone of voice: a friendly stylist. Short, concrete, never judgmental ("Try it wi
 | `borderStrong` | `#8C857A` | `#7A746A` | outlines that must be seen: inputs, secondary buttons (≥ 3.4:1) |
 | `text` | `#1C1B19` | `#F2F0EC` | main text (16.2:1) |
 | `textMuted` | `#6B665E` | `#A39E95` | secondary text (≥ 4.9:1) |
-| `accent` | `#A4482F` | `#E5917A` | primary action, selection (5.6:1 / 7.6:1) |
-| `onAccent` | `#FFFFFF` | `#1C1B19` | text on accent (5.9:1 / 7.1:1) |
+| `surfaceAccent` | `#E8ECE3` | `#232821` | soft sage summary cards (`StatCard`) |
+| `accent` | `#2E4A72` | `#A9BEE0` | primary action, selection |
+| `onAccent` | `#FFFFFF` | `#141412` | text on accent (9.0:1 / 9.8:1) |
 | `danger` / `success` | `#B42318` / `#2F7D4F` | `#F27A6E` / `#6CC28F` | errors, confirmations |
 
 All text pairs meet WCAG AA (≥ 4.5:1) and `borderStrong` outlines meet 3:1 (WCAG 1.4.11). This is enforced by
@@ -36,12 +37,14 @@ Garment colour swatches (from `src/lib/taxonomy.ts`) are data, not UI colours, a
 white and black swatches stay visible in both modes.
 
 ## Typography (`theme.typography`)
-System font (San Francisco / Roboto / system-ui on web): fast, native, scales with the user's text size.
+`display` and `title` use **Fraunces SemiBold** (SIL OFL, `@expo-google-fonts/fraunces/600SemiBold`, loaded once in
+`app/_layout.tsx`; falls back to the system font if it fails). Everything else uses the system font (San Francisco /
+Roboto / system-ui on web): fast, native, scales with the user's text size. Don't use the serif below 18 pt.
 
 | Variant | Size / line | Weight | Use |
 |---|---|---|---|
-| `display` | 32 / 38 | 700 | onboarding, big moments only |
-| `title` | 24 / 30 | 600 | screen titles |
+| `display` | 34 / 40 | Fraunces SemiBold | onboarding, big moments only |
+| `title` | 26 / 32 | Fraunces SemiBold | screen titles, big numbers on `StatCard` |
 | `heading` | 18 / 24 | 600 | section headers, card titles |
 | `body` | 16 / 22 | 400 | default |
 | `label` | 14 / 18 | 500 | buttons, chips, tags |
@@ -67,6 +70,7 @@ Item and outfit detail screens push on top of the current tab. Camera and tag co
 Available now in `@/ui`:
 - `Screen` (background, safe areas, padding; `scroll` and `centered` options)
 - `Text` (`variant`, `muted`, `tone`)
+- `StatCard` (sage card with a row of big numbers, e.g. wardrobe stats on Profile)
 - `Button` (`primary` / `secondary` / `danger` for confirming destructive actions, `loading`, `disabled`)
 - `TextField` (label, hint, error; focus ring in accent)
 - `Chip`, `ChipGroup` (single choice; tap again to clear)
@@ -94,7 +98,5 @@ Owner-supplied mockups and screenshots live in [`design-references/`](design-ref
 not rules: this file stays the source of truth until the owners decide on a change.
 
 ## Owner decisions
-- Design direction 2 is approved: navy accent on warm paper, Fraunces serif headings, sage stats card (`surfaceAccent`).
-  The tokens above still show clay until the #38 implementation PR lands; that PR updates this file.
-  See [`DECISIONS.md`](DECISIONS.md).
+- Colours and fonts follow design direction 2 (navy on warm paper, Fraunces headings). See [`DECISIONS.md`](DECISIONS.md).
 - 2026-11-11: the app is called **Cloey** in the UI (app name, scheme `cloey://`).
