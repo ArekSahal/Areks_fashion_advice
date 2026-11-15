@@ -16,7 +16,9 @@ import {
   SHOP_LOCALE,
   ShopInputError,
   type ShopProduct,
+  type ShopFilters,
   buildChannel3Search,
+  filterAndRank,
   fromExternalProductRow,
   normalizeSearchInput,
   parseProduct,
@@ -24,7 +26,7 @@ import {
   searchCacheMaterial,
   toExternalProductRow,
 } from '../../../src/lib/shop.ts';
-import { logUsage } from '../_shared/usage.ts';
+import { logUsage, markUsageFailed } from '../_shared/usage.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -53,8 +55,11 @@ function channel3Headers(key: string, userId: string) {
   return { 'x-api-key': key, 'x-user-id': userId, 'Content-Type': 'application/json' };
 }
 
-/** Free product detail call (GET /v1/products/{id}) in the Swedish locale. Returns null on any failure. */
-async function fetchProduct(key: string, userId: string, id: string): Promise<ShopProduct | null> {
+/**
+ * Free product detail call (GET /v1/products/{id}) in the Swedish locale. Returns undefined if the call failed
+ * (network, timeout, error status) and null if Channel3 answered with a product we can't show.
+ */
+async function fetchProduct(key: string, userId: string, id: string): Promise<ShopProduct | null | undefined> {
   const params = new URLSearchParams(SHOP_LOCALE);
   try {
     const res = await fetch(`${API}/v1/products/${encodeURIComponent(id)}?${params}`, {
@@ -63,29 +68,40 @@ async function fetchProduct(key: string, userId: string, id: string): Promise<Sh
     });
     if (!res.ok) {
       console.warn('channel3-search: product fetch failed', res.status);
-      return null;
+      return res.status === 404 ? null : undefined;
     }
     return parseProduct(await res.json());
   } catch (e) {
     console.warn('channel3-search: product fetch error', e);
-    return null;
+    return undefined;
   }
 }
 
-async function fromCache(admin: Admin, key: string, userId: string, ids: string[]): Promise<ShopProduct[]> {
+/**
+ * Refreshes a cached id list with the free product call and runs it through the same filters and ranking as a fresh
+ * search (sold-out items and offers over the cap drop out). Only a product whose fetch failed falls back to its
+ * cached display fields.
+ */
+async function fromCache(
+  admin: Admin,
+  key: string,
+  userId: string,
+  ids: string[],
+  filters: ShopFilters,
+): Promise<ShopProduct[]> {
   const fresh = await Promise.all(ids.map((id) => fetchProduct(key, userId, id)));
-  const missing = ids.filter((_, i) => !fresh[i]);
+  const failed = ids.filter((_, i) => fresh[i] === undefined);
   const fallback = new Map<string, ShopProduct>();
-  if (missing.length > 0) {
-    const { data } = await admin.from('external_products').select('*').in('external_id', missing);
+  if (failed.length > 0) {
+    const { data } = await admin.from('external_products').select('*').in('external_id', failed);
     for (const row of data ?? []) {
-      const p = fromExternalProductRow(row);
+      const p = fromExternalProductRow(row, filters);
       if (p) fallback.set(p.id, p);
     }
   }
-  return ids
-    .map((id, i) => fresh[i] ?? fallback.get(id) ?? null)
-    .filter((p): p is ShopProduct => p !== null);
+  const loaded = filterAndRank(fresh.map((p) => p ?? null), filters);
+  const offline = ids.map((id) => fallback.get(id)).filter((p): p is ShopProduct => p !== undefined);
+  return [...loaded, ...offline];
 }
 
 async function search(admin: Admin, apiKey: string, userId: string, body: unknown): Promise<Response> {
@@ -107,13 +123,15 @@ async function search(admin: Admin, apiKey: string, userId: string, body: unknow
     .maybeSingle();
   if (cacheError) console.warn('channel3-search: cache read failed', cacheError.message);
   if (hit?.product_ids) {
-    const products = await fromCache(admin, apiKey, userId, hit.product_ids as string[]);
+    const products = await fromCache(admin, apiKey, userId, hit.product_ids as string[], input.filters);
     console.log(JSON.stringify({ event: 'channel3-search.search', cached: true, results: products.length }));
     return json({ products, cached: true });
   }
 
   // Paid call: log the credit first, and don't call Channel3 if the log can't be written.
+  const usageId = crypto.randomUUID();
   const logged = await logUsage(admin, {
+    id: usageId,
     user_id: userId,
     feature: FEATURE,
     provider: 'channel3',
@@ -124,17 +142,22 @@ async function search(admin: Admin, apiKey: string, userId: string, body: unknow
   });
   if (!logged) return json({ error: 'shop_unavailable' }, 503);
 
-  const res = await fetch(`${API}/v1/search`, {
-    method: 'POST',
-    headers: channel3Headers(apiKey, userId),
-    body: JSON.stringify(buildChannel3Search(input)),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    console.error('channel3-search: search failed', res.status, (await res.text()).slice(0, 300));
+  let raw: unknown;
+  try {
+    const res = await fetch(`${API}/v1/search`, {
+      method: 'POST',
+      headers: channel3Headers(apiKey, userId),
+      body: JSON.stringify(buildChannel3Search(input)),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`status ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    raw = await res.json();
+  } catch (e) {
+    console.error('channel3-search: search failed', e);
+    await markUsageFailed(admin, usageId);
     return json({ error: 'shop_unavailable' }, 502);
   }
-  const products = parseSearchResponse(await res.json(), input.filters);
+  const products = parseSearchResponse(raw, input.filters);
 
   const now = new Date();
   if (products.length > 0) {
@@ -182,6 +205,7 @@ Deno.serve(async (req) => {
       const id = body.product_id;
       if (typeof id !== 'string' || !PRODUCT_ID.test(id)) return json({ error: 'invalid_product_id' }, 400);
       const product = await fetchProduct(apiKey, userId, id);
+      if (product === undefined) return json({ error: 'shop_unavailable' }, 502);
       return product ? json({ product }) : json({ error: 'not_found' }, 404);
     }
     return json({ error: 'bad_request' }, 400);

@@ -3,6 +3,7 @@ import {
   SHOP_RESULT_LIMIT,
   ShopInputError,
   buildChannel3Search,
+  filterAndRank,
   formatPrice,
   fromExternalProductRow,
   normalizeSearchInput,
@@ -92,7 +93,7 @@ describe('buildChannel3Search', () => {
 });
 
 describe('pickBestOffer', () => {
-  it('prefers in stock, then second-hand, then cheaper, commission only as the last tie-breaker', () => {
+  it('skips sold-out offers, prefers second-hand, then cheaper, commission only as the last tie-breaker', () => {
     const best = pickBestOffer([
       offer({ url: 'https://a/out', availability: 'OutOfStock', condition: 'used', price: { price: 10, currency: 'SEK' } }),
       offer({ url: 'https://a/new-cheap', price: { price: 100, currency: 'SEK' }, max_commission_rate: 0.5 }),
@@ -169,6 +170,26 @@ describe('parseProduct / parseSearchResponse', () => {
   });
 });
 
+describe('filterAndRank (cache hits use the same rules as fresh searches)', () => {
+  it('drops refreshed products that sold out, went over the cap or are no longer second-hand', () => {
+    const fresh = [
+      parseProduct(product('soldout', [offer({ availability: 'OutOfStock' })])),
+      parseProduct(product('gone', [])),
+      null,
+      parseProduct(product('newnow', [offer()])),
+      parseProduct(product('used', [offer({ condition: 'used', price: { price: 450, currency: 'SEK' } })])),
+      parseProduct(product('eur', [offer({ condition: 'used', price: { price: 40, currency: 'EUR' } })])),
+    ];
+    expect(filterAndRank(fresh, { usedOnly: true, maxPrice: 500 }).map((p) => p.id)).toEqual(['used']);
+    expect(filterAndRank(fresh).map((p) => p.id)).toEqual(['used', 'eur', 'newnow']);
+  });
+
+  it('never lets an offer in another currency past a SEK price cap', () => {
+    const p = parseProduct(product('eur', [offer({ price: { price: 10, currency: 'EUR' } })]));
+    expect(filterAndRank([p], { maxPrice: 500 })).toEqual([]);
+  });
+});
+
 describe('external_products rows', () => {
   it('never stores the buy link', () => {
     const p = parseProduct(product('p1', [offer()]))!;
@@ -181,6 +202,19 @@ describe('external_products rows', () => {
     const p = parseProduct(product('p1', [offer()]))!;
     const back = fromExternalProductRow(toExternalProductRow(p));
     expect(back).toMatchObject({ id: 'p1', title: p.title, offer: null });
+  });
+
+  it('applies the filters to cached rows too (price may come back from Postgres as a string)', () => {
+    const row = { ...toExternalProductRow(parseProduct(product('p1', [offer()]))!), price: '799.00' };
+    expect(fromExternalProductRow(row, { usedOnly: true })).toBeNull();
+    expect(fromExternalProductRow(row, { maxPrice: 500 })).toBeNull();
+    expect(fromExternalProductRow(row, { maxPrice: 1000 })?.id).toBe('p1');
+  });
+
+  it('cuts long brand and category values to the column limits', () => {
+    const p = parseProduct(product('p1', [offer()], { brands: [{ id: 'b', name: 'x'.repeat(300) }], category: { slug: 'y'.repeat(300) } }))!;
+    expect(p.brand).toHaveLength(200);
+    expect(p.categorySlug).toHaveLength(200);
   });
 });
 

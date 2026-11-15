@@ -14,13 +14,18 @@ export async function searchShop(input: ShopSearchInput): Promise<ShopResults> {
 }
 
 /**
- * The buy link to open for a card. Links from a search are used as they are while fresh; older ones (or cards
- * shown from the cache without an offer) get a fresh link through the free product call.
+ * The buy link from the search results, if it is still fresh enough to open right away. Offer links are short-lived
+ * affiliate links, so after OFFER_FRESH_MINUTES (or for cards shown from the cache without an offer) use
+ * fetchOfferUrl() instead.
  */
-export async function offerUrl(product: ShopProduct, fetchedAt: number, now: number = Date.now()): Promise<string | null> {
-  if (product.offer && now - fetchedAt < OFFER_FRESH_MINUTES * 60_000) return product.offer.url;
+export function freshOfferUrl(product: ShopProduct, fetchedAt: number, now: number = Date.now()): string | null {
+  return product.offer && now - fetchedAt < OFFER_FRESH_MINUTES * 60_000 ? product.offer.url : null;
+}
+
+/** A fresh buy link through the free product call. null if the product is gone or has no offer. */
+export async function fetchOfferUrl(productId: string): Promise<string | null> {
   const { data, error } = await supabase.functions.invoke<{ product: ShopProduct }>('channel3-search', {
-    body: { action: 'offer', product_id: product.id },
+    body: { action: 'offer', product_id: productId },
   });
   if (error || !data?.product?.offer) return null;
   return data.product.offer.url;

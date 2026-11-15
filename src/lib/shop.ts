@@ -155,7 +155,7 @@ function parseOffer(raw: unknown): (ShopOffer & { inStock: boolean }) | null {
   const o = raw as Record<string, unknown> | null;
   if (!o || typeof o !== 'object') return null;
   const url = str(o.url);
-  const domain = str(o.domain);
+  const domain = str(o.domain)?.slice(0, 255) ?? null;
   const p = o.price as Record<string, unknown> | null;
   const price = num(p?.price);
   const currency = str(p?.currency);
@@ -175,15 +175,14 @@ function parseOffer(raw: unknown): (ShopOffer & { inStock: boolean }) | null {
 }
 
 /**
- * Best offer for the card: in stock first, then second-hand, then the lowest price, then the highest commission
- * as the last tie-breaker (docs/channel3.md → Ranking).
+ * Best offer for the card: only in-stock offers; second-hand first, then the lowest price, then the highest
+ * commission as the last tie-breaker (docs/channel3.md → Ranking). null = nothing buyable right now.
  */
 export function pickBestOffer(rawOffers: unknown): ShopOffer | null {
   if (!Array.isArray(rawOffers)) return null;
-  const offers = rawOffers.map(parseOffer).filter((o): o is NonNullable<typeof o> => o !== null);
+  const offers = rawOffers.map(parseOffer).filter((o): o is NonNullable<typeof o> => o !== null && o.inStock);
   offers.sort(
     (a, b) =>
-      Number(b.inStock) - Number(a.inStock) ||
       Number(b.condition === 'used') - Number(a.condition === 'used') ||
       a.price - b.price ||
       b.commission - a.commission,
@@ -214,34 +213,44 @@ export function parseProduct(raw: unknown): ShopProduct | null {
   return {
     id,
     title: title.slice(0, 200),
-    brand: str((brands[0] as Record<string, unknown> | undefined)?.name),
+    brand: str((brands[0] as Record<string, unknown> | undefined)?.name)?.slice(0, 200) ?? null,
     imageUrl: mainImage(p.images),
-    categorySlug: str(category?.slug),
+    categorySlug: str(category?.slug)?.slice(0, 200) ?? null,
     gender: p.gender === 'male' || p.gender === 'female' ? p.gender : null,
     materials: Array.isArray(p.materials) ? p.materials.filter((m): m is string => typeof m === 'string').slice(0, 8) : [],
     offer: pickBestOffer(p.offers),
   };
 }
 
+/** Does a fully loaded card pass the user's filters? Needs a buyable offer; enforces the price cap and used-only. */
+export function passesFilters(p: ShopProduct, filters: ShopFilters = {}): boolean {
+  if (!p.offer) return false;
+  // The cap is also sent to Channel3; this guards against offers in another currency or a stale cached price.
+  if (filters.maxPrice && (p.offer.currency !== 'SEK' || p.offer.price > filters.maxPrice)) return false;
+  if (filters.usedOnly && p.offer.condition !== 'used') return false;
+  return true;
+}
+
 /**
- * Turns a Channel3 SearchResponse into the cards we show: drops products without a buyable offer or above the
- * price cap (the cap is also sent to Channel3; this guards against currency mismatches), then puts second-hand
- * offers first while keeping Channel3's relevance order within each group.
+ * Filters, de-duplicates and ranks cards: second-hand offers first, keeping Channel3's relevance order within each
+ * group. Used for fresh search results and for cached results refreshed with the product call, so both behave alike.
  */
+export function filterAndRank(products: readonly (ShopProduct | null)[], filters: ShopFilters = {}): ShopProduct[] {
+  const seen = new Set<string>();
+  const kept: ShopProduct[] = [];
+  for (const p of products) {
+    if (!p || seen.has(p.id) || !passesFilters(p, filters)) continue;
+    seen.add(p.id);
+    kept.push(p);
+  }
+  return rankSecondHandFirst(kept);
+}
+
+/** Turns a Channel3 SearchResponse into the cards we show (see filterAndRank). */
 export function parseSearchResponse(raw: unknown, filters: ShopFilters = {}): ShopProduct[] {
   const list = (raw as { products?: unknown } | null)?.products;
   if (!Array.isArray(list)) return [];
-  const seen = new Set<string>();
-  const products: ShopProduct[] = [];
-  for (const item of list) {
-    const p = parseProduct(item);
-    if (!p || !p.offer || seen.has(p.id)) continue;
-    if (filters.maxPrice && p.offer.currency === 'SEK' && p.offer.price > filters.maxPrice) continue;
-    if (filters.usedOnly && p.offer.condition !== 'used') continue;
-    seen.add(p.id);
-    products.push(p);
-  }
-  return rankSecondHandFirst(products);
+  return filterAndRank(list.map(parseProduct), filters);
 }
 
 export function rankSecondHandFirst(products: readonly ShopProduct[]): ShopProduct[] {
@@ -267,11 +276,17 @@ export function toExternalProductRow(p: ShopProduct, now: Date = new Date()) {
   };
 }
 
-/** Card shown from the cache when a fresh product fetch fails: display fields only, no offer to open. */
-export function fromExternalProductRow(row: Record<string, unknown>): ShopProduct | null {
+/**
+ * Card shown from the cache when the fresh product call fails: display fields only, no offer (the app fetches a
+ * link when it's tapped). Returns null if the cached row doesn't pass the filters (price cap, used-only).
+ */
+export function fromExternalProductRow(row: Record<string, unknown>, filters: ShopFilters = {}): ShopProduct | null {
   const id = str(row.external_id);
   const title = str(row.title);
   if (!id || !title) return null;
+  const price = typeof row.price === 'number' ? row.price : Number(row.price);
+  if (filters.usedOnly && row.condition !== 'used') return null;
+  if (filters.maxPrice && (row.currency !== 'SEK' || !Number.isFinite(price) || price > filters.maxPrice)) return null;
   return {
     id,
     title,

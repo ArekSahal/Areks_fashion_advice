@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { gridColumns } from '@/lib/photo';
 import {
   MAX_QUERY_LENGTH,
@@ -15,12 +15,15 @@ import {
   type ShopMaxPrice,
   type ShopProduct,
 } from '@/lib/shop';
-import { offerUrl, searchShop, type ShopResults } from '@/lib/shopClient';
-import { Button, Chip, ChipGroup, EmptyState, PhotoGrid, Text, TextField } from './components';
+import { fetchOfferUrl, freshOfferUrl, searchShop, type ShopResults } from '@/lib/shopClient';
+import { Button, Chip, ChipGroup, EmptyState, ItemCard, PhotoGrid, Text, TextField } from './components';
 import { useTheme } from './theme';
 
 const CATEGORY_OPTIONS = SHOP_CATEGORIES.map((c) => ({ value: c, label: SHOP_CATEGORY_LABELS[c] }));
 const GENDER_OPTIONS = SHOP_GENDERS.map((g) => ({ value: g, label: SHOP_GENDER_LABELS[g] }));
+const SKELETON = ['a', 'b', 'c', 'd'];
+/** Required label on every shop link (docs/channel3.md → Ranking and labelling). */
+const COMMISSION_LABEL = 'Shop link · we may earn a commission';
 const PRICE_OPTIONS = SHOP_MAX_PRICES.map((p) => ({ value: String(p) as `${ShopMaxPrice}`, label: `Under ${formatPrice(p, 'SEK')}` }));
 
 /** One shop result: product photo, title, brand, price and whether the offer is second-hand. */
@@ -53,7 +56,7 @@ function ProductCard({ product, onOpen }: { product: ShopProduct; onOpen: () => 
               top: t.space.sm,
               left: t.space.sm,
               paddingHorizontal: t.space.sm,
-              paddingVertical: 2,
+              paddingVertical: t.space.xxs,
               borderRadius: t.radius.pill,
               backgroundColor: t.colours.surfaceAccent,
             }}
@@ -72,6 +75,9 @@ function ProductCard({ product, onOpen }: { product: ShopProduct; onOpen: () => 
       ) : null}
       <Text variant="caption" numberOfLines={1}>
         {offer ? `${formatPrice(offer.price, offer.currency)} · ${offer.domain}` : 'Tap to see price'}
+      </Text>
+      <Text variant="caption" muted numberOfLines={1}>
+        {COMMISSION_LABEL}
       </Text>
     </Pressable>
   );
@@ -93,6 +99,7 @@ export function ShopView() {
   const [results, setResults] = useState<ShopResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
 
   const canSearch = query.trim().length > 0 || category !== null;
 
@@ -115,10 +122,29 @@ export function ShopView() {
   }
 
   async function open(product: ShopProduct) {
-    if (!results) return;
-    const url = await offerUrl(product, results.fetchedAt);
-    if (url) await Linking.openURL(url);
-    else setError('That item is no longer available.');
+    if (!results || opening) return;
+    setError(null);
+    const fresh = freshOfferUrl(product, results.fetchedAt);
+    // On the web, open the tab during the tap: browsers (mobile Safari) block tabs opened after a network wait.
+    const tab = !fresh && Platform.OS === 'web' ? window.open('', '_blank') : null;
+    setOpening(true);
+    try {
+      const url = fresh ?? (await fetchOfferUrl(product.id));
+      if (!url) {
+        tab?.close();
+        setError('That item is no longer available.');
+      } else if (tab) {
+        tab.opener = null;
+        tab.location.href = url;
+      } else {
+        await Linking.openURL(url);
+      }
+    } catch {
+      tab?.close();
+      setError('We couldn’t open the shop. Try again.');
+    } finally {
+      setOpening(false);
+    }
   }
 
   return (
@@ -146,7 +172,9 @@ export function ShopView() {
         </Text>
       ) : null}
 
-      {results === null ? (
+      {loading ? (
+        <PhotoGrid items={SKELETON} columns={columns} keyOf={(k) => k} renderItem={() => <ItemCard uri={null} />} />
+      ) : results === null ? (
         <EmptyState
           title="Shop online stores"
           body="Search clothes from shops that deliver to Sweden. Second-hand offers come first."
@@ -162,7 +190,7 @@ export function ShopView() {
             renderItem={(p) => <ProductCard product={p} onOpen={() => open(p)} />}
           />
           <Text variant="caption" muted>
-            Shop links · we may earn a commission. Prices from the shop, in SEK where available.
+            Prices and stock come from each shop and can change.
           </Text>
         </>
       )}
