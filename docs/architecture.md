@@ -15,6 +15,7 @@ _Owner: Platform agent. v1, 2026-11-10. Updated whenever a milestone changes the
    └─ Edge Functions .. everything that needs a secret or costs money
          ├─ tag-item ............ vision LLM → suggested tags
          ├─ process-image ....... EXIF strip, background removal, thumbnail
+         ├─ cleanup-quarantine .. hourly (pg_cron): removes quarantine uploads older than 1 h
          ├─ embed ............... image + text embeddings → pgvector
          ├─ recommend ........... "what goes with this?" (rules + embeddings)
          ├─ style-profile ....... style analysis (M5)
@@ -34,7 +35,7 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 | Table | Key columns | Notes / RLS |
 |---|---|---|
 | `profiles` | id (= auth.users.id), display_name, locale, style_unlocked_at, consent_* flags | owner only; created by trigger on sign-up |
-| `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, embedding vector, created_at | owner only; marketplace reads go through `listings` |
+| `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, tags_confirmed_at, embedding vector, created_at | owner only; marketplace reads go through `listings`. **The tag columns hold unconfirmed AI suggestions until `tags_confirmed_at` is set** (the original suggestion stays in `tag_confidence.suggested`). Every consumer (recommend, outfits, style profile, listings, search) must filter `tags_confirmed_at is not null` or treat the tags as suggestions |
 | `outfits` | id, owner_id, worn_on date, photo_path, notes | owner only |
 | `outfit_items` | outfit_id, item_id | owner only (via outfit); wear counts and "last worn" come from here (view `item_wear_stats`) |
 | `listings` | id, item_id, seller_id, price, currency, condition, size, city, status (active/reserved/sold/withdrawn) | **signed-in users** read active listings through `listings_public` (a view with `security_invoker = true`, safe columns only, no exact location); seller writes. Never a plain view (views bypass RLS by default) |
@@ -70,7 +71,11 @@ chunks/markers, tested in `src/lib/sanitizeImage.test.ts`), optionally removes t
 `PHOTOROOM_API_KEY` secret exists, the user turned on "Let AI see faces" since faces aren't blurred yet, and they are
 under 50 calls/24 h; each call is logged in `api_usage` first and skipped if it can't be logged), writes `item-photos/{user_id}/{item_id}/clean.*` + `thumb.*`, inserts the
 `clothing_items` row and deletes the quarantine copies (also when processing fails). No file with metadata is ever
-readable by clients or kept.
+readable by clients or kept. Leftovers (the app uploaded but never called `process-image`) are removed by
+`cleanup-quarantine`: a pg_cron job (`cleanup-quarantine`, minute 17 of every hour) calls it through pg_net with a
+shared secret from Vault, and it deletes every quarantine file older than 1 hour through the Storage API
+(selection logic in `supabase/functions/_shared/quarantine-cleanup.ts`, tested in `src/lib/quarantineCleanup.test.ts`).
+Each run returns and logs `{ removed, scanned, kept }`; history in `cron.job_run_details` and `net._http_response`.
 
 **Faces:** before any photo goes to an AI provider (tagging, outfit analysis, style analysis, garment detection),
 faces must be blurred unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits are the common case, so
@@ -93,7 +98,10 @@ this is the default path, not an edge case. Faces are blurred on the device befo
 ## Key flows
 **Add item (M1, target < 30 s):** camera → client resize/re-encode → upload to `uploads-quarantine` → `process-image`
 (strip, blur faces, move to `item-photos`) → insert `clothing_items`
-(status `owned`, tags empty) → call `tag-item` → user confirms chips → save → `process-image` + `embed` run in background.
+(status `owned`, tags empty) → call `tag-item` (writes the suggestion into the tag columns + `tag_confidence`, still
+unconfirmed) → **Confirm tags** screen (`app/confirm-tags.tsx`): user checks/fixes the chips → Save writes the tags and
+`tags_confirmed_at` → `embed` runs in background. "Skip for now" leaves `tags_confirmed_at` null; the wardrobe shows the
+item as "Needs tags" and never displays its unconfirmed tags as facts.
 
 **Post outfit (M2):** photo (optional) + pick items → insert `outfits` + `outfit_items` → wear stats update via view.
 
