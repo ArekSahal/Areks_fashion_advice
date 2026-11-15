@@ -44,6 +44,12 @@ export default function ProfileScreen() {
     useCallback(() => {
       if (!userId) return;
       let active = true;
+      // The confirm-tags screen can turn on "Let AI see faces"; keep the toggle in sync (the name field is left alone).
+      fetchProfile(userId)
+        .then((p) => {
+          if (active) setProfile((current) => (current ? p : current));
+        })
+        .catch(() => {});
       listMyItems()
         .then((items) => {
           if (active) setCounts({ items: items.length, needsTags: items.filter((i) => !i.tags_confirmed_at).length });
