@@ -3,6 +3,8 @@
  * Platform code lives in preparePhoto.ts (native) and preparePhoto.web.ts (browser canvas).
  */
 
+import type { FaceCheck } from './faceBlur';
+
 /** Longest side of the photo we upload. process-image rejects anything above PHOTO_LIMITS. */
 export const CLEAN_MAX_SIDE = 1600;
 export const THUMB_MAX_SIDE = 400;
@@ -18,6 +20,8 @@ export const PHOTO_MIME: Record<PhotoFormat, string> = { webp: 'image/webp', jpe
 /** A photo ready to upload: re-encoded (no EXIF/GPS), downscaled, plus a thumbnail. */
 export type PreparedPhoto = {
   format: PhotoFormat;
+  /** Whether faces were blurred on the device before encoding (see faceBlur.ts). */
+  faceCheck: FaceCheck;
   clean: Blob | ArrayBuffer;
   thumb: Blob | ArrayBuffer;
 };

@@ -1,11 +1,15 @@
 // Add-item photo pipeline (docs/architecture.md → Storage, Key flows).
 // The app re-encodes the photo on the device (drops EXIF/GPS), uploads it plus a thumbnail to
-// uploads-quarantine/{user_id}/{upload_id}[.thumb].{webp|jpg} and calls this function with { upload_id, format }.
+// uploads-quarantine/{user_id}/{upload_id}[.thumb].{webp|jpg} and calls this function with
+// { upload_id, format, face_check }.
 // Here we: check the caller → download with the service role → sniff and validate the bytes (never trusting the
 // client) → strip any remaining metadata → enforce size limits → optional background removal → write
 // item-photos/{user_id}/{item_id}/clean.* and thumb.* → insert the clothing_items row → delete the quarantine copies.
-// Face blur is a later step (before tag-item sends photos to an AI provider).
+// Faces are blurred on the device before upload (web: MediaPipe; native: not yet). If the app reports that the
+// face step ran (face_check 'blurred' or 'none'), the row gets faces_blurred_at = now(), which lets tag-item send
+// the photo to the AI without face consent. Clients can't set that column themselves (column grants).
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { faceCheckLabel, facesBlurredAt } from '../_shared/face-check.ts';
 import { ImageFormatError, sanitizeImage, type ImageFormat } from '../_shared/sanitize-image.ts';
 import { logUsage, usageLast24h } from '../_shared/usage.ts';
 
@@ -67,7 +71,8 @@ async function download(admin: Admin, path: string, limit: { maxBytes: number; m
 /**
  * Optional background removal with Photoroom (docs/ai-providers.md). Runs only when all of these hold:
  * - the PHOTOROOM_API_KEY secret exists;
- * - the user turned on "Let AI see faces" (profiles.consent_face_analysis), because faces aren't blurred yet;
+ * - the user turned on "Let AI see faces" (profiles.consent_face_analysis). Photoroom is a third party, and this
+ *   step doesn't know whether the device blurred faces (native and older clients don't), so consent is required;
  * - the user is under PHOTOROOM_DAILY_LIMIT calls in the last 24 h, counted in api_usage;
  * - the call could be logged in api_usage first (so nothing paid goes unlogged or uncapped).
  * Otherwise, or on any failure, the photo is kept as taken. Returns a transparent WebP, re-sanitised like any input.
@@ -161,8 +166,16 @@ Deno.serve(async (req) => {
 
     const { error: insertError } = await admin
       .from('clothing_items')
-      .insert({ id: itemId, owner_id: userId, image_path: imagePath, thumb_path: thumbPath });
+      .insert({
+        id: itemId,
+        owner_id: userId,
+        image_path: imagePath,
+        thumb_path: thumbPath,
+        faces_blurred_at: facesBlurredAt(body?.face_check),
+      });
     if (insertError) throw insertError;
+    // One line per upload, to see how often the device step runs and finds faces (never logs the raw value).
+    console.log(JSON.stringify({ event: 'process-image.face_check', item_id: itemId, face_check: faceCheckLabel(body?.face_check) }));
 
     return json({ item_id: itemId });
   } catch (e) {
