@@ -43,6 +43,10 @@ verify_jwt = false
 [functions.tag-item]
 verify_jwt = false
 
+# Called only by the hourly pg_cron job; checks the x-cleanup-secret header against Vault instead of a JWT.
+[functions.cleanup-quarantine]
+verify_jwt = false
+
 # Health check for the Vertex secret (no user data, free countTokens call only).
 [functions.vertex-check]
 verify_jwt = false

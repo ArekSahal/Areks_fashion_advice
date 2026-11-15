@@ -15,6 +15,7 @@ _Owner: Platform agent. v1, 2026-11-10. Updated whenever a milestone changes the
    └─ Edge Functions .. everything that needs a secret or costs money
          ├─ tag-item ............ vision LLM → suggested tags
          ├─ process-image ....... EXIF strip, background removal, thumbnail
+         ├─ cleanup-quarantine .. hourly (pg_cron): removes quarantine uploads older than 1 h
          ├─ embed ............... image + text embeddings → pgvector
          ├─ recommend ........... "what goes with this?" (rules + embeddings)
          ├─ style-profile ....... style analysis (M5)
@@ -70,7 +71,11 @@ chunks/markers, tested in `src/lib/sanitizeImage.test.ts`), optionally removes t
 `PHOTOROOM_API_KEY` secret exists, the user turned on "Let AI see faces" since faces aren't blurred yet, and they are
 under 50 calls/24 h; each call is logged in `api_usage` first and skipped if it can't be logged), writes `item-photos/{user_id}/{item_id}/clean.*` + `thumb.*`, inserts the
 `clothing_items` row and deletes the quarantine copies (also when processing fails). No file with metadata is ever
-readable by clients or kept.
+readable by clients or kept. Leftovers (the app uploaded but never called `process-image`) are removed by
+`cleanup-quarantine`: a pg_cron job (`cleanup-quarantine`, minute 17 of every hour) calls it through pg_net with a
+shared secret from Vault, and it deletes every quarantine file older than 1 hour through the Storage API
+(selection logic in `supabase/functions/_shared/quarantine-cleanup.ts`, tested in `src/lib/quarantineCleanup.test.ts`).
+Each run returns and logs `{ removed, scanned, kept }`; history in `cron.job_run_details` and `net._http_response`.
 
 **Faces:** before any photo goes to an AI provider (tagging, outfit analysis, style analysis, garment detection),
 `process-image` detects faces and blurs them unless `profiles.consent_face_analysis` is true. Mirror selfies of outfits
