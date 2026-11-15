@@ -26,6 +26,8 @@ import {
   type TagErrorKind,
   type TagForm,
 } from '@/lib/confirmTags';
+import { useAuth } from '@/lib/auth';
+import { updateProfile } from '@/lib/profile';
 import { fetchItemForTagging, requestTagSuggestion, saveConfirmedTags, signedPhotoUrls } from '@/lib/items';
 import { COLOURS, FITS, MATERIALS, OCCASIONS, PATTERNS, SEASONS, type Formality } from '@/lib/taxonomy';
 import { Button, ChipGroup, MultiChipGroup, Screen, TagConfirmRow, Text, useTheme } from '@/ui';
@@ -113,6 +115,8 @@ export default function ConfirmTags() {
   const [saving, setSaving] = useState(false);
   const [limitHit, setLimitHit] = useState<'colours' | 'materials' | null>(null);
   const active = useRef(true);
+  const { session } = useAuth();
+  const [consenting, setConsenting] = useState(false);
 
   const apply = useCallback((loaded: Loaded) => {
     if (!active.current) return;
@@ -135,6 +139,24 @@ export default function ConfirmTags() {
     setMessage(null);
     setPhase({ kind: 'loading' });
     loadTagging(itemId, showPhoto).then(apply);
+  }
+
+  /** "Let AI see faces": turns on the Profile consent, then asks for tags again (issue #26). */
+  async function allowFaces() {
+    const userId = session?.user.id;
+    if (!userId) {
+      setMessage('Couldn’t change that setting. Please try again, or tag it yourself.');
+      return;
+    }
+    setConsenting(true);
+    try {
+      await updateProfile(userId, { consent_face_analysis: true });
+      if (active.current) retry();
+    } catch {
+      if (active.current) setMessage('Couldn’t change that setting. Please try again, or tag it yourself.');
+    } finally {
+      if (active.current) setConsenting(false);
+    }
   }
 
   function tagMyself() {
@@ -219,9 +241,23 @@ export default function ConfirmTags() {
         <Text variant="title">Add tags</Text>
         {photoWell}
         <Text accessibilityLiveRegion="polite">{copy.message}</Text>
+        {message ? (
+          <Text tone="danger" accessibilityLiveRegion="polite">
+            {message}
+          </Text>
+        ) : null}
         {copy.canRetry ? <Button label="Try again" onPress={retry} /> : null}
-        <Button label="Tag it myself" variant={copy.canRetry ? 'secondary' : 'primary'} onPress={tagMyself} />
-        {skip}
+        <Button
+          label="Tag it myself"
+          variant={copy.canRetry ? 'secondary' : 'primary'}
+          onPress={tagMyself}
+          disabled={consenting}
+        />
+        {/* Privacy first: tagging by hand stays the main action; sharing faces is the secondary choice. */}
+        {phase.error === 'needs_face_consent' ? (
+          <Button label="Let AI see faces" variant="secondary" onPress={allowFaces} loading={consenting} />
+        ) : null}
+        <Button label="Skip for now" variant="secondary" onPress={toWardrobe} disabled={consenting} />
       </Screen>
     );
   }

@@ -16,6 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TypeVariant } from './tokens';
 import { useTheme } from './theme';
 
+/** Visible chip height; the touch target around it is `touchTarget` (48). */
+const CHIP_HEIGHT = 36;
+
 type AppTextProps = TextProps & { variant?: TypeVariant; muted?: boolean; tone?: 'default' | 'danger' | 'success' };
 
 /** All text goes through this, so type scale and colours stay consistent. */
@@ -184,28 +187,32 @@ export function Chip({
       accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
       accessibilityState={{ selected }}
       onPress={onPress}
-      hitSlop={(t.touchTarget - 36) / 2}
-      style={{
-        minHeight: 36,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: t.space.xs,
-        paddingHorizontal: t.space.md,
-        borderRadius: t.radius.pill,
-        borderWidth: 1,
-        borderColor: selected ? t.colours.accent : t.colours.borderStrong,
-        backgroundColor: selected ? t.colours.accent : 'transparent',
-      }}
+      // The pressable is a full 48pt touch target (hitSlop doesn't work on web); the visible pill inside stays 36pt.
+      style={{ minHeight: t.touchTarget, justifyContent: 'center' }}
     >
-      {swatch ? <ColourSwatch hex={swatch} /> : null}
-      <Text variant="label" style={{ color: fg }}>
-        {label}
-      </Text>
-      {badge ? (
-        <Text variant="caption" style={{ color: fg }}>
-          · {badge}
+      <View
+        style={{
+          minHeight: CHIP_HEIGHT,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: t.space.xs,
+          paddingHorizontal: t.space.md,
+          borderRadius: t.radius.pill,
+          borderWidth: 1,
+          borderColor: selected ? t.colours.accent : t.colours.borderStrong,
+          backgroundColor: selected ? t.colours.accent : 'transparent',
+        }}
+      >
+        {swatch ? <ColourSwatch hex={swatch} /> : null}
+        <Text variant="label" style={{ color: fg }}>
+          {label}
         </Text>
-      ) : null}
+        {badge ? (
+          <Text variant="caption" style={{ color: fg }}>
+            · {badge}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -275,7 +282,7 @@ export function ChipGroup<T extends string>({
 }) {
   const t = useTheme();
   return (
-    <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.space.sm }}>
+    <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: t.space.sm }}>
       {options.map((o) => (
         <Chip
           key={o.value}
@@ -303,7 +310,7 @@ export function MultiChipGroup<T extends string>({
 }) {
   const t = useTheme();
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.space.sm }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: t.space.sm }}>
       {options.map((o) => (
         <Chip
           key={o.value}

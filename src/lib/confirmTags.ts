@@ -168,8 +168,9 @@ export function tagErrorKind(body: unknown): TagErrorKind {
 export const TAG_ERROR_COPY: Record<Exclude<TagErrorKind, 'already_confirmed'>, { message: string; canRetry: boolean }> = {
   needs_face_consent: {
     message:
-      'To keep faces private, we only send photos to the AI after faces are blurred, and that step isn’t ready yet. ' +
-      'You can tag this one yourself, or turn on “Let AI see faces in my photos” in Profile.',
+      'To keep faces private, we only send photos to the AI after faces are blurred, and we couldn’t confirm that ' +
+      'for this photo. You can tag this one yourself, or let the AI see faces in all your photos, including outfit ' +
+      'photos (turn it off any time in Profile).',
     canRetry: false,
   },
   daily_limit: {
