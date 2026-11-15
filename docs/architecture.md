@@ -20,7 +20,7 @@ _Owner: Platform agent. v1, 2026-11-10. Updated whenever a milestone changes the
          ├─ recommend ........... "what goes with this?" (rules + embeddings)
          ├─ style-profile ....... style analysis (M5)
          ├─ recreate-outfit ..... garment detection + matching (M6)
-         ├─ channel3-search ..... Channel3 search with cache + budget guard
+         ├─ channel3-search ..... Channel3 Shop search (24 h ID cache) + fresh buy links
          └─ account-export / account-delete (GDPR)
    ▼
  External: vision LLM / embedding provider (TBD in M1), Channel3 API
@@ -43,8 +43,8 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 | `conversations` / `messages` | buyer, seller, listing; sender, body, created_at | only the two participants |
 | `style_profiles` | owner_id, computed_at, summary jsonb | owner only |
 | `inspiration_requests` | id, owner_id, image_path, status, result jsonb | owner only |
-| `external_products` | source ('channel3'), external_id, title, brand, image_url, category, colours[], materials[], embedding, price_hint, currency, availability_hint, best_offer_domain, fetched_at | readable by authenticated users; written only by Edge Functions. **No buy URLs stored**: fetched fresh with the free product-detail call (see `docs/DECISIONS.md` and `docs/channel3.md`) |
-| `external_search_cache` | key_hash, external_ids[], fetched_at | Edge Functions only |
+| `external_products` (built in M1.5) | external_id, title, brand, image_url, category_slug, gender, materials[], price, currency, condition, offer_domain, refreshed_at (embedding comes with M3/M6) | Edge Functions only (RLS on, no policies, no client grants); the app gets products from `channel3-search`. Display fields kept 7 days, price/condition 24 h for ranking. **No buy URLs stored**: fetched fresh (see `docs/DECISIONS.md` and `docs/channel3.md`) |
+| `channel3_search_cache` (built in M1.5) | cache_key (sha256 of normalised query + filters + locale), product_ids[], created_at | Edge Functions only. Reused for 24 h; daily pg_cron job deletes old rows |
 | `recommendation_feedback` | owner_id, seed_item_id, candidate ref, signal (shown/accepted/liked/disliked/worn), created_at | owner only |
 | `api_usage` (built in M1c) | feature, provider (vertex / channel3 / photoroom), units + unit (tokens / credits / calls), cost_estimate_usd, user_id (nullable), ok, created_at; Vertex rows also keep model, location, input/output tokens | Edge Functions write (one row per paid call, also failed ones); owner can read own rows (included in export); owners read totals via dashboard. On account delete: `user_id` set to null (aggregate cost kept). Vertex cost formula in `src/lib/vertex.ts` |
 | `events` | user_id, name, props jsonb, created_at | insert-own-only; deleted with the account. See `docs/metrics.md` |
