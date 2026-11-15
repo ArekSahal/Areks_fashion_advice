@@ -94,5 +94,7 @@ Owner-supplied mockups and screenshots live in [`design-references/`](design-ref
 not rules: this file stays the source of truth until the owners decide on a change.
 
 ## Owner decisions
-- 2026-11-11: keep the warm paper + clay colours for now.
+- Design direction 2 is approved: navy accent on warm paper, Fraunces serif headings, sage stats card (`surfaceAccent`).
+  The tokens above still show clay until the #38 implementation PR lands; that PR updates this file.
+  See [`DECISIONS.md`](DECISIONS.md).
 - 2026-11-11: the app is called **Cloey** in the UI (app name, scheme `cloey://`).

@@ -89,11 +89,12 @@ this is the default path, not an edge case. Faces are blurred on the device befo
   full-body selfies), and every padded face box is blurred on the canvas before encoding (at most 4 cells across the
   face); the thumbnail is made from the blurred photo. Logic in `src/lib/faceBlur.ts`.
 - **Native:** not yet (ML Kit needs a development build); native uploads report `skipped`.
-- The app sends `face_check: 'blurred' | 'none' | 'skipped'` to `process-image`. Only `blurred` or `none` (detector ran,
-  no face) sets `clothing_items.faces_blurred_at = now()` (service role); anything else, including a detector that
-  failed to load, leaves it unset (fail closed), and `tag-item` then needs consent. Clients can't write
-  `faces_blurred_at` (column grants, tested in `src/lib/faceCheck.test.ts`). The mark is the app's own report:
-  it guards honest clients, not a modified one (a server backstop such as Cloud Vision would close that gap).
+- The app sends `face_check: 'blurred' | 'none' | 'skipped'` to `process-image`, which trusts this device report (no
+  server-side check, see [`DECISIONS.md`](DECISIONS.md)). Only `blurred` or `none` (detector ran, no face) sets
+  `clothing_items.faces_blurred_at = now()` (service role); anything else, including a detector that failed to load,
+  leaves it unset (fail closed), and without consent `tag-item` then does not send the photo to the AI. Clients can't
+  write `faces_blurred_at` (column grants, tested in `src/lib/faceCheck.test.ts`). A modified client can only
+  misreport its own uploads.
 
 ## Key flows
 **Add item (M1, target < 30 s):** camera → client resize/re-encode → upload to `uploads-quarantine` → `process-image`
