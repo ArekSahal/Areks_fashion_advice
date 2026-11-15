@@ -15,13 +15,20 @@
 - Add item via camera/gallery, EXIF stripping, background removal
 - AI tagging with user confirmation; wardrobe grid with filters
 
+## M1.5: Shop (Channel3)
+- **Marketplace** tab with two sections: second-hand from other users (filled in M4) and **Shop** (Channel3)
+- Shop: search + filters (category, colour, size, price, ships to Sweden), product cards, `channel3-search` Edge Function,
+  `external_products` cache; "you already own something similar" from item tags
+- AI stylist in the shop comes after M3 (needs matching scores). See [`DECISIONS.md`](DECISIONS.md)
+
 ## M2: Outfit diary
 - Post today's outfit (photo + linked items), calendar, wear counts, "last worn"
 
 ## M3: "What goes with this?"
 - Matching engine (rules + embeddings), explanations, feedback loop
 
-## M4: Marketplace
+## M4: Marketplace (second-hand between users)
+- Fills the second-hand section of the Marketplace tab from M1.5
 - Mark items for sale, listings, recommendations of listed items to other users, messaging
 
 ## M5: Style analysis
