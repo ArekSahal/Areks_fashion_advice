@@ -1,3 +1,11 @@
+import {
+  suggestionFromResponse,
+  tagErrorKind,
+  type ConfirmedUpdate,
+  type Suggestion,
+  type TagColumns,
+  type TagErrorKind,
+} from './confirmTags';
 import { newUploadId, PHOTO_MIME, quarantinePaths, type PreparedPhoto } from './photo';
 import { supabase } from './supabase';
 
@@ -61,4 +69,53 @@ export async function addItemFromPhoto(userId: string, photo: PreparedPhoto): Pr
   if (error) throw error;
   if (!data?.item_id) throw new Error('Empty response');
   return data.item_id;
+}
+
+/** One item as the confirm-tags screen needs it. */
+export type ItemForTagging = TagColumns & {
+  id: string;
+  image_path: string | null;
+  thumb_path: string | null;
+  tag_confidence: unknown;
+  tags_confirmed_at: string | null;
+};
+
+const TAGGING_COLUMNS =
+  'id, image_path, thumb_path, category, subcategory, colours, pattern, materials, fit, formality, seasons, occasions, tag_confidence, tags_confirmed_at';
+
+/** The item with its tag columns, or null if it doesn't exist (or isn't yours: RLS). */
+export async function fetchItemForTagging(itemId: string): Promise<ItemForTagging | null> {
+  const { data, error } = await supabase
+    .from('clothing_items')
+    .select(TAGGING_COLUMNS)
+    .eq('id', itemId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as ItemForTagging | null) ?? null;
+}
+
+export type TagRequest = { ok: true; suggestion: Suggestion } | { ok: false; kind: TagErrorKind };
+
+/** Asks tag-item for suggestions. Never throws: failures come back as an error kind the screen can explain. */
+export async function requestTagSuggestion(itemId: string): Promise<TagRequest> {
+  try {
+    const { data, error } = await supabase.functions.invoke<unknown>('tag-item', { body: { item_id: itemId } });
+    if (error) {
+      // FunctionsHttpError carries the Response; its JSON body has the error code (e.g. needs_face_consent).
+      const context = (error as { context?: { json?: () => Promise<unknown> } }).context;
+      const body = typeof context?.json === 'function' ? await context.json().catch(() => null) : null;
+      return { ok: false, kind: tagErrorKind(body) };
+    }
+    const suggestion = suggestionFromResponse(data);
+    return suggestion ? { ok: true, suggestion } : { ok: false, kind: 'unavailable' };
+  } catch {
+    return { ok: false, kind: 'unavailable' };
+  }
+}
+
+/** Saves the user's tags and marks them confirmed. Throws if nothing was updated. */
+export async function saveConfirmedTags(itemId: string, update: ConfirmedUpdate): Promise<void> {
+  const { data, error } = await supabase.from('clothing_items').update(update).eq('id', itemId).select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Item not found');
 }

@@ -75,9 +75,11 @@ Available now in `@/ui`:
 - `EmptyState` (title, body, one action)
 - `ItemCard` (4:5 photo well + optional 1-line label; `uri={null}` is the loading skeleton)
 - `PhotoGrid` (equal columns; use `gridColumns(width)` from `src/lib/photo.ts`: 2 on phones, up to 5 on wide web)
+- `ColourSwatch` (garment colour dot on a `borderStrong` ring); `Chip` takes an optional `swatch`
+- `MultiChipGroup` (multi choice; the caller handles order and limits, e.g. colours max 3, dominant first)
+- `TagConfirmRow` (one AI tag field: dotted border + "Check this" when confidence < 0.6, "Please pick" when empty)
 
-Planned for M1 (build them once, here, then reuse): `ColourSwatch`, `Sheet` (bottom sheet),
-`TagConfirmRow` (AI tag with "check this" state), `Toast` (errors and confirmations).
+Planned for M1 (build them once, here, then reuse): `Sheet` (bottom sheet), `Toast` (errors and confirmations).
 
 ## Patterns
 - **Loading:** skeletons in the shape of the content (photo wells), not spinners, for lists. Spinner only inside buttons.

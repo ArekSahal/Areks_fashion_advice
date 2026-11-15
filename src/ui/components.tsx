@@ -139,19 +139,57 @@ export function TextField({ label, error, hint, ...input }: TextFieldProps) {
   );
 }
 
-/** Selectable pill for filters, tags and single choices. */
-export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+/**
+ * Garment colour dot. The hex is taxonomy data (src/lib/taxonomy.ts), not a UI colour, so it always sits on a
+ * borderStrong ring to keep white and black visible in both modes.
+ */
+export function ColourSwatch({ hex, size = 16 }: { hex: string; size?: number }) {
   const t = useTheme();
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        borderWidth: 1,
+        borderColor: t.colours.borderStrong,
+        backgroundColor: hex,
+      }}
+    />
+  );
+}
+
+/**
+ * Selectable pill for filters, tags and single choices. `swatch` adds a garment colour dot before the label;
+ * `badge` adds a short note after it (e.g. "Main" on the dominant colour).
+ */
+export function Chip({
+  label,
+  selected,
+  onPress,
+  swatch,
+  badge,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  swatch?: string;
+  badge?: string;
+}) {
+  const t = useTheme();
+  const fg = selected ? t.colours.onAccent : t.colours.text;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={badge ? `${label}, ${badge.toLowerCase()}` : label}
       accessibilityState={{ selected }}
       onPress={onPress}
       hitSlop={(t.touchTarget - 36) / 2}
       style={{
         minHeight: 36,
-        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: t.space.xs,
         paddingHorizontal: t.space.md,
         borderRadius: t.radius.pill,
         borderWidth: 1,
@@ -159,9 +197,15 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
         backgroundColor: selected ? t.colours.accent : 'transparent',
       }}
     >
-      <Text variant="label" style={{ color: selected ? t.colours.onAccent : t.colours.text }}>
+      {swatch ? <ColourSwatch hex={swatch} /> : null}
+      <Text variant="label" style={{ color: fg }}>
         {label}
       </Text>
+      {badge ? (
+        <Text variant="caption" style={{ color: fg }}>
+          · {badge}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -187,6 +231,89 @@ export function ChipGroup<T extends string>({
           onPress={() => onChange(o.value === value ? null : o.value)}
         />
       ))}
+    </View>
+  );
+}
+
+/** Multi-choice row of chips (colours, seasons…). The caller decides order and limits. */
+export function MultiChipGroup<T extends string>({
+  options,
+  values,
+  onToggle,
+  badgeOf,
+}: {
+  options: readonly { value: T; label: string; swatch?: string }[];
+  values: readonly T[];
+  onToggle: (value: T) => void;
+  /** Optional badge per selected value, e.g. "Main" on the first colour. */
+  badgeOf?: (value: T) => string | undefined;
+}) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.space.sm }}>
+      {options.map((o) => (
+        <Chip
+          key={o.value}
+          label={o.label}
+          swatch={o.swatch}
+          selected={values.includes(o.value)}
+          badge={values.includes(o.value) ? badgeOf?.(o.value) : undefined}
+          onPress={() => onToggle(o.value)}
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * One AI tag field on the confirm-tags screen. `check` (low confidence) gets a dotted border and "Check this";
+ * `pick` (left empty) asks the user to choose. Children are the chips.
+ */
+export function TagConfirmRow({
+  label,
+  status = 'ok',
+  hint,
+  children,
+}: {
+  label: string;
+  status?: 'ok' | 'check' | 'pick';
+  hint?: string;
+  children: ReactNode;
+}) {
+  const t = useTheme();
+  const flagged = status !== 'ok';
+  const note = status === 'check' ? 'Check this' : status === 'pick' ? 'Please pick' : null;
+  return (
+    <View
+      style={{
+        alignSelf: 'stretch',
+        gap: t.space.sm,
+        padding: t.space.md,
+        borderRadius: t.radius.md,
+        borderWidth: 1,
+        borderStyle: flagged ? 'dotted' : 'solid',
+        borderColor: flagged ? t.colours.borderStrong : 'transparent',
+      }}
+    >
+      <View
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={note ? `${label}, ${note.toLowerCase()}` : label}
+        style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: t.space.sm }}
+      >
+        <Text variant="heading">{label}</Text>
+        {note ? (
+          <Text variant="label" importantForAccessibility="no" accessibilityElementsHidden>
+            {note}
+          </Text>
+        ) : null}
+      </View>
+      {hint ? (
+        <Text variant="caption" muted>
+          {hint}
+        </Text>
+      ) : null}
+      {children}
     </View>
   );
 }

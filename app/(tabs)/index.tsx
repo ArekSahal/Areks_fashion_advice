@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { useWindowDimensions, View } from 'react-native';
+import { Pressable, useWindowDimensions, View } from 'react-native';
 import { listMyItems, signedPhotoUrls, type WardrobeItem } from '@/lib/items';
 import { gridColumns } from '@/lib/photo';
 import { EmptyState, ItemCard, PhotoGrid, Screen, Text } from '@/ui';
@@ -11,7 +11,7 @@ const SKELETON = ['a', 'b', 'c', 'd'];
 
 /** Only tags the user confirmed are shown; AI suggestions stay hidden until the confirm-tags step. */
 function label(item: WardrobeItem): string | undefined {
-  if (!item.tags_confirmed_at) return undefined;
+  if (!item.tags_confirmed_at) return 'Needs tags';
   const raw = item.subcategory ?? item.category;
   if (!raw) return undefined;
   const text = raw.replace(/_/g, ' ');
@@ -94,7 +94,19 @@ export default function Wardrobe() {
             keyOf={(item) => item.id}
             renderItem={(item) => {
               const path = item.thumb_path ?? item.image_path;
-              return <ItemCard uri={path ? (data.urls[path] ?? null) : null} label={label(item)} />;
+              const card = <ItemCard uri={path ? (data.urls[path] ?? null) : null} label={label(item)} />;
+              if (item.tags_confirmed_at) return card;
+              // Untagged (skipped) items open the confirm-tags screen.
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Item needs tags. Add tags"
+                  onPress={() => router.push({ pathname: '/confirm-tags', params: { id: item.id } })}
+                  style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
+                >
+                  {card}
+                </Pressable>
+              );
             }}
           />
         </>
