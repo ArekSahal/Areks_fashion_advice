@@ -73,7 +73,7 @@ Available now in `@/ui`:
 - `StatCard` (sage card with a row of big numbers, e.g. wardrobe stats on Profile)
 - `Button` (`primary` / `secondary` / `danger` for confirming destructive actions, `loading`, `disabled`)
 - `TextField` (label, hint, error; focus ring in accent)
-- `Chip`, `ChipGroup` (single choice; tap again to clear)
+- `Chip`, `ChipGroup` (single choice; tap again to clear). The pill is 36 pt tall inside a 48 pt touch area (works on web too, unlike `hitSlop`); chip groups use `columnGap` only, since that padding already spaces the rows
 - `SwitchRow` (setting with description)
 - `Section` (surface card with optional heading)
 - `EmptyState` (title, body, one action)
