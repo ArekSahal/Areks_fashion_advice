@@ -18,7 +18,7 @@ It is English-only and made for both men and women (see `DECISIONS.md`, 2026-11-
 5. **Marketplace**: user marks an item as for sale (price, condition, size, location).
    Listed items can show up as recommendations in other users' wardrobes when they fill a gap
    or match owned items. Messaging between buyer and seller. Payments come later; MVP = contact + deal.
-   The **Marketplace** tab has two sections: second-hand from other users, and the **Shop**, where users
+   The **Market** tab has two sections: second-hand from other users, and the **Shop**, where users
    search online shops via Channel3 (and later ask the AI stylist). See `docs/ROADMAP.md` (M1.5).
 6. **Style analysis**: unlocks after N outfits are posted (start with N = 15). Produces a style
    profile: dominant colours, silhouettes, formality, style archetypes, gaps in the wardrobe,

@@ -31,7 +31,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="add" options={{ title: 'Add', tabBarIcon: icon('add-circle-outline', 'add-circle') }} />
       <Tabs.Screen
         name="marketplace"
-        options={{ title: 'Marketplace', tabBarIcon: icon('pricetags-outline', 'pricetags') }}
+        options={{ title: 'Market', tabBarIcon: icon('pricetags-outline', 'pricetags') }}
       />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: icon('person-outline', 'person') }} />
     </Tabs>
