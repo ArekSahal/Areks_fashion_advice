@@ -37,7 +37,7 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 |---|---|---|
 | `profiles` | id (= auth.users.id), display_name, locale, style_unlocked_at, consent_* flags | owner only; created by trigger on sign-up |
 | `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, tags_confirmed_at, source_photo_id, source_box jsonb (server-set), embedding vector, created_at | owner only; marketplace reads go through `listings`. **The tag columns hold unconfirmed AI suggestions until `tags_confirmed_at` is set** (the original suggestion stays in `tag_confidence.suggested`). Every consumer (recommend, outfits, style profile, listings, search) must filter `tags_confirmed_at is not null` or treat the tags as suggestions |
-| `wardrobe_photos` | id, owner_id, image_path, thumb_path, faces_blurred_at, taken_at, created_at | owner only. The original photo items were cut from (Wardrobe → Outfits, #36). Paths and `faces_blurred_at` are server-set. Separate from the M2 diary so wear counts stay honest |
+| `wardrobe_photos` | id, owner_id, image_path, thumb_path, faces_blurred_at, taken_at, detections jsonb, detected_at, created_at | owner only. The original photo items were cut from (Wardrobe → Outfits, #36). Paths, `faces_blurred_at` and `detections` are server-set. Separate from the M2 diary so wear counts stay honest |
 | `outfits` | id, owner_id, worn_on date, photo_path, notes | owner only |
 | `outfit_items` | outfit_id, item_id | owner only (via outfit); wear counts and "last worn" come from here (view `item_wear_stats`) |
 | `listings` | id, item_id, seller_id, price, currency, condition, size, city, status (active/reserved/sold/withdrawn) | **signed-in users** read active listings through `listings_public` (a view with `security_invoker = true`, safe columns only, no exact location); seller writes. Never a plain view (views bypass RLS by default) |
@@ -113,8 +113,18 @@ item as "Needs tags" and never displays its unconfirmed tags as facts.
 `detect_garments`) and returns up to 8 garments, most prominent first (layered pieces such as a shirt under a knit stay separate; the two
 shoes of a pair are merged into one box): `box` in the `source_box` format
 (`{x, y, w, h}` fractions), `tags`, `confidence`, `needs_check`, `detection_confidence` and `uncertain` (leave unticked).
-It writes nothing; results aren't cached yet. Prompt, schema, parser and the box → pixel crop helper are in
-`src/lib/detection.ts`, which reuses the per-garment parser and schema from `src/lib/tagging.ts`.
+It stores the garments (same order as the reply) on `wardrobe_photos.detections` and writes no items. A repeat call
+answers from the stored result (`status: 'already_detected'`, no Vertex call) unless the app sends `force: true`, so
+garment indexes can't shift under a confirm screen that is still open. Prompt, schema, parser and the box → pixel crop helper are in `src/lib/detection.ts`, which reuses the
+per-garment parser and schema from `src/lib/tagging.ts`.
+
+**Save garments from a wardrobe photo (#36 slice 3, server side):** the app uploads the original photo through
+`process-image` with `target: 'wardrobe_photo'` (stored under `{user_id}/photos/{photo_id}/`, no background removal,
+same face-check rule) → `detect-garments` → the user ticks garments → for each, the app crops it on the device (box →
+pixels with `boxToCropRect`), blurs faces, and uploads it as a normal item with `source: { photo_id, garment_index }`.
+`process-image` looks the garment up in the caller's stored `detections` and sets `source_photo_id`, `source_box` and
+the suggested tags (`tag_confidence.source = 'detect_garments'`, still unconfirmed), so the box and tags never come
+from the request. The same garment can't be saved twice (409 `garment_already_saved`). Helpers: `src/lib/garmentSource.ts`. The item then goes through **Confirm tags** like any other.
 
 **Post outfit (M2):** photo (optional) + pick items → insert `outfits` + `outfit_items` → wear stats update via view.
 
