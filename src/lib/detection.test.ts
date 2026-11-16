@@ -5,11 +5,14 @@ import {
   MAX_GARMENTS,
   boxIoU,
   boxToCropRect,
+  buildDetectionRequest,
   isValidSourceBox,
   normaliseBox,
   parseDetectionResponse,
+  unionBox,
 } from './detection';
 import { GARMENT_TAG_PROPERTIES, TAG_FIELDS, TAG_RULES, parseGarmentTags } from './tagging';
+import { buildTaggingRequest } from './vertex';
 
 const sure = Object.fromEntries(TAG_FIELDS.map((f) => [f, 0.9]));
 
@@ -74,6 +77,25 @@ describe('detection schema and prompt', () => {
     expect(DETECTION_PROMPT).toMatch(/Menswear and womenswear/);
     expect(DETECTION_PROMPT).toMatch(/never the face/);
     expect(DETECTION_PROMPT).toMatch(/\[ymin, xmin, ymax, xmax\]/);
+  });
+
+  it('prompt asks for layered pieces separately and skips socks, underwear and hosiery', () => {
+    expect(DETECTION_PROMPT).toMatch(/List layered pieces separately/);
+    expect(DETECTION_PROMPT).toMatch(/Skip socks, underwear and hosiery/);
+    expect(DETECTION_PROMPT).not.toMatch(/shoes, socks/);
+  });
+
+  it('request: detection prompt + schema, own billing label, larger output cap than tagging', () => {
+    const req = buildDetectionRequest({ mimeType: 'image/jpeg', data: 'BBBB' });
+    const tagging = buildTaggingRequest({ mimeType: 'image/jpeg', data: 'BBBB' });
+    expect(req.contents[0]?.parts).toEqual([{ inlineData: { mimeType: 'image/jpeg', data: 'BBBB' } }, { text: DETECTION_PROMPT }]);
+    expect(req.generationConfig.responseJsonSchema).toBe(DETECTION_RESPONSE_SCHEMA);
+    expect(req.generationConfig.temperature).toBe(tagging.generationConfig.temperature);
+    expect(req.generationConfig.maxOutputTokens).toBeGreaterThan(tagging.generationConfig.maxOutputTokens);
+    expect(req.generationConfig.maxOutputTokens).toBeLessThanOrEqual(4096);
+    expect(req.labels).toEqual({ feature: 'detect_garments' });
+    expect(tagging.labels).toEqual({ feature: 'tag_item' });
+    expect(JSON.parse(JSON.stringify(req))).toEqual(req);
   });
 });
 
@@ -156,6 +178,53 @@ describe('parseDetectionResponse', () => {
     expect(r.warnings).toEqual(['dropped_boxes']);
   });
 
+  it('keeps a shirt under a knit (menswear) as two garments', () => {
+    const r = ok({
+      garments: [
+        garment([200, 250, 600, 750], { subcategory: 'knit', colours: ['navy'] }),
+        garment([190, 260, 610, 740], { subcategory: 'shirt', colours: ['light_blue'] }), // collar + cuffs peek out
+      ],
+    });
+    expect(r.garments.map((g) => g.tags.subcategory)).toEqual(['knit', 'shirt']);
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('keeps a t-shirt under an open jacket (womenswear) as two garments', () => {
+    const r = ok({
+      garments: [
+        garment([180, 200, 620, 800], { subcategory: 'jacket', colours: ['black'], materials: ['leather'] }),
+        garment([200, 230, 600, 770], { subcategory: 't_shirt', colours: ['white'] }),
+      ],
+    });
+    expect(r.garments.map((g) => g.tags.subcategory)).toEqual(['jacket', 't_shirt']);
+  });
+
+  it('still drops the same top reported twice', () => {
+    const r = ok({
+      garments: [
+        garment([200, 250, 600, 750], { subcategory: 'knit' }),
+        garment([205, 255, 600, 745], { subcategory: 'hoodie' }), // same mid layer
+      ],
+    });
+    expect(r.garments.map((g) => g.tags.subcategory)).toEqual(['knit']);
+    expect(r.warnings).toEqual(['dropped_boxes']);
+  });
+
+  it('merges the two shoes of a pair into one garment with the union box', () => {
+    const r = ok({
+      garments: [
+        garment([100, 100, 800, 900], { subcategory: 'dress' }),
+        garment([880, 300, 980, 450], { subcategory: 'sneakers', colours: ['white'] }),
+        garment([870, 520, 990, 680], { subcategory: 'sneakers', colours: ['white'] }),
+        garment([880, 700, 960, 800], { subcategory: 'boots' }),
+      ],
+    });
+    expect(r.garments.map((g) => g.tags.subcategory)).toEqual(['dress', 'sneakers', 'boots']);
+    expect(r.garments[1]?.box).toEqual({ x: 0.3, y: 0.87, w: 0.38, h: 0.12 });
+    expect(isValidSourceBox(r.garments[1]?.box)).toBe(true);
+    expect(r.warnings).toEqual([]);
+  });
+
   it('keeps at most 8 garments, most prominent first', () => {
     const many = Array.from({ length: 12 }, (_, i) => garment([i * 80, 0, i * 80 + 70, 300], { subcategory: 'scarf' }));
     const r = ok({ garments: many });
@@ -193,6 +262,10 @@ describe('boxes', () => {
     expect(isValidSourceBox({ x: 0, y: 0, w: 0, h: 0.5 })).toBe(false);
     expect(isValidSourceBox({ x: '0', y: 0, w: 1, h: 1 })).toBe(false);
     expect(isValidSourceBox(null)).toBe(false);
+  });
+
+  it('unionBox covers both boxes', () => {
+    expect(unionBox({ x: 0.1, y: 0.8, w: 0.2, h: 0.1 }, { x: 0.5, y: 0.75, w: 0.2, h: 0.2 })).toEqual({ x: 0.1, y: 0.75, w: 0.6, h: 0.2 });
   });
 
   it('boxIoU', () => {

@@ -19,6 +19,8 @@ import {
   parseGarmentTags,
   readReplyObject,
 } from './tagging.ts';
+import { layerOf } from './taxonomy.ts';
+import { type InlineImage, buildJsonRequest } from './vertex.ts';
 
 /** Bump when the prompt or schema changes. */
 export const DETECTION_SCHEMA_VERSION = 1;
@@ -28,7 +30,10 @@ export const MAX_GARMENTS = 8;
 export const BOX_SCALE = 1000;
 /** Boxes narrower or shorter than this fraction of the photo are dropped as noise. */
 export const MIN_BOX_SIDE = 0.02;
-/** Two boxes overlapping at least this much (intersection over union) with compatible categories are duplicates. */
+/**
+ * Two boxes overlapping at least this much (intersection over union) are duplicates when they are the same kind of
+ * garment (same subcategory or same layer). Layered pieces (shirt under a knit) overlap a lot but are kept.
+ */
 export const DUPLICATE_IOU = 0.8;
 /** Upper bound on raw entries we look at, so a runaway reply can't make the parser do unbounded work. */
 const MAX_RAW_ENTRIES = 50;
@@ -66,8 +71,11 @@ export const DETECTION_PROMPT = [
   'Detection rules:',
   `- box_2d: the tight box around that item as [ymin, xmin, ymax, xmax], integers from 0 to ${BOX_SCALE}`,
   '  relative to the image height and width.',
-  '- A pair of shoes, socks or gloves is one item with one box around both. Each piece of a suit or set is its',
-  '  own item (jacket and trousers separately).',
+  '- A pair of shoes or gloves is one item with one box around both. Each piece of a suit or set is its own item',
+  '  (jacket and trousers separately).',
+  '- List layered pieces separately (a shirt collar under a knit, a t-shirt under an open jacket); box each',
+  '  piece\'s visible extent.',
+  '- Skip socks, underwear and hosiery.',
   '- Box only what is worn or laid out: never the face, hair, skin, phone, furniture or background.',
   '- Skip items that are so hidden or cut off that they could not be tagged.',
   '- detection_confidence: how sure you are (0 to 1) that this is a real, separate garment.',
@@ -198,10 +206,38 @@ function clampUnit(v: unknown): number | null {
   return n === null ? null : Math.round(Math.min(1, Math.max(0, n)) * 100) / 100;
 }
 
+/** Smallest box containing both (still a valid source_box: both inputs are inside the photo). */
+export function unionBox(a: SourceBox, b: SourceBox): SourceBox {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    w: round4(Math.min(1, Math.max(a.x + a.w, b.x + b.w)) - x),
+    h: round4(Math.min(1, Math.max(a.y + a.h, b.y + b.h)) - y),
+  };
+}
+
+/**
+ * Whether two overlapping detections are the same garment reported twice: same subcategory, or the same layer
+ * (coat vs parka). A shirt under a knit or a t-shirt under an open jacket are different layers, so both stay.
+ * Without a subcategory we fall back to the category (unknown counts as a match).
+ */
+function sameKind(a: GarmentTags, b: GarmentTags): boolean {
+  const sa = a.tags.subcategory;
+  const sb = b.tags.subcategory;
+  if (sa !== null && sb !== null) {
+    if (sa === sb) return true;
+    const la = layerOf(sa);
+    return la !== null && la === layerOf(sb);
+  }
+  return a.tags.category === null || b.tags.category === null || a.tags.category === b.tags.category;
+}
+
 /**
  * Turns the model's detection reply (parsed JSON or the raw JSON string) into at most MAX_GARMENTS garments,
- * most prominent first. Never throws. Drops entries without a usable box, weak detections (< 0.3), and duplicates
- * (same or unknown category with heavily overlapping boxes); tags go through parseGarmentTags, so each garment has
+ * most prominent first. Never throws. Drops entries without a usable box, weak detections (< 0.3), duplicates
+ * (same subcategory or layer with heavily overlapping boxes) and merges the two shoes of a pair into one box; tags go through parseGarmentTags, so each garment has
  * its own needsCheck list exactly like single-item tagging.
  */
 export function parseDetectionResponse(raw: unknown): DetectionResult {
@@ -235,12 +271,15 @@ export function parseDetectionResponse(raw: unknown): DetectionResult {
       continue;
     }
     const tagged = parseGarmentTags(r);
-    const duplicate = garments.some(
-      (g) =>
-        boxIoU(g.box, box) >= DUPLICATE_IOU &&
-        (g.tags.category === null || tagged.tags.category === null || g.tags.category === tagged.tags.category),
-    );
-    if (duplicate) {
+    // A shoe pair reported as two entries: merge into one garment with the union box (the first entry's tags).
+    const pair = tagged.tags.category === 'footwear'
+      ? garments.find((g) => g.tags.category === 'footwear' && g.tags.subcategory === tagged.tags.subcategory)
+      : undefined;
+    if (pair) {
+      pair.box = unionBox(pair.box, box);
+      continue;
+    }
+    if (garments.some((g) => boxIoU(g.box, box) >= DUPLICATE_IOU && sameKind(g, tagged))) {
       dropped = true;
       continue;
     }
@@ -264,4 +303,14 @@ export function parseDetectionResponse(raw: unknown): DetectionResult {
   if (overflow) warnings.push('too_many_garments');
   if (dropped) warnings.push('dropped_boxes');
   return { ok: true, garments, warnings };
+}
+
+// ---------- Request ----------
+
+/** Up to 8 garments × ~300 tokens each, plus headroom; caps cost if the model rambles. */
+export const DETECTION_MAX_OUTPUT_TOKENS = 4096;
+
+/** Vertex request for one photo: same model and settings as tagging, larger output cap, own billing label. */
+export function buildDetectionRequest(image: InlineImage) {
+  return buildJsonRequest(image, DETECTION_PROMPT, DETECTION_RESPONSE_SCHEMA, DETECTION_MAX_OUTPUT_TOKENS, 'detect_garments');
 }
