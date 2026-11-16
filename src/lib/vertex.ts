@@ -162,20 +162,31 @@ export interface InlineImage {
   data: string;
 }
 
-export function buildTaggingRequest(image: InlineImage) {
+/** Gemini request: one image + prompt, JSON reply constrained by `schema`. Also used by src/lib/detection.ts. */
+export function buildJsonRequest(
+  image: InlineImage,
+  prompt: string,
+  schema: unknown,
+  maxOutputTokens: number,
+  feature: string,
+) {
   return {
-    contents: [{ role: 'user', parts: [{ inlineData: image }, { text: TAGGING_PROMPT }] }],
+    contents: [{ role: 'user', parts: [{ inlineData: image }, { text: prompt }] }],
     generationConfig: {
       temperature: TAGGING_TEMPERATURE,
-      maxOutputTokens: TAGGING_MAX_OUTPUT_TOKENS,
+      maxOutputTokens,
       responseMimeType: 'application/json',
-      responseJsonSchema: TAGGING_RESPONSE_SCHEMA,
+      responseJsonSchema: schema,
       // Tagging is a lookup, not a reasoning task; thinking tokens are billed as output.
       thinkingConfig: { thinkingLevel: 'MINIMAL' },
     },
     // Shows up in Google Cloud billing, so cost can be split per feature there too.
-    labels: { feature: 'tag_item' },
+    labels: { feature },
   };
+}
+
+export function buildTaggingRequest(image: InlineImage) {
+  return buildJsonRequest(image, TAGGING_PROMPT, TAGGING_RESPONSE_SCHEMA, TAGGING_MAX_OUTPUT_TOKENS, 'tag_item');
 }
 
 /** 1×1 grey PNG, so the free health check also exercises image input. */
