@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { DETECTION_PROMPT, DETECTION_RESPONSE_SCHEMA } from './detection';
 import { TAGGING_PROMPT, TAGGING_RESPONSE_SCHEMA, parseTaggingResponse } from './tagging';
 import {
   OAUTH_SCOPE,
@@ -7,7 +6,6 @@ import {
   TAGGING_MODEL,
   base64UrlEncode,
   buildCountTokensRequest,
-  buildDetectionRequest,
   buildJwtClaims,
   buildTaggingRequest,
   bytesToBase64,
@@ -147,18 +145,6 @@ describe('requests', () => {
     expect(req.generationConfig.temperature).toBeLessThanOrEqual(0.2);
     expect(req.generationConfig.maxOutputTokens).toBeLessThanOrEqual(2048);
     expect(JSON.parse(JSON.stringify(req))).toEqual(req);
-  });
-
-  it('detection uses the detection prompt + schema, its own billing label and a larger output cap', () => {
-    const req = buildDetectionRequest({ mimeType: 'image/jpeg', data: 'BBBB' });
-    const tagging = buildTaggingRequest({ mimeType: 'image/jpeg', data: 'BBBB' });
-    expect(req.contents[0]?.parts).toEqual([{ inlineData: { mimeType: 'image/jpeg', data: 'BBBB' } }, { text: DETECTION_PROMPT }]);
-    expect(req.generationConfig.responseJsonSchema).toBe(DETECTION_RESPONSE_SCHEMA);
-    expect(req.generationConfig.temperature).toBe(tagging.generationConfig.temperature);
-    expect(req.generationConfig.maxOutputTokens).toBeGreaterThan(tagging.generationConfig.maxOutputTokens);
-    expect(req.generationConfig.maxOutputTokens).toBeLessThanOrEqual(4096);
-    expect(req.labels).toEqual({ feature: 'detect_garments' });
-    expect(tagging.labels).toEqual({ feature: 'tag_item' });
   });
 
   it('countTokens (health check) mirrors the tagging request without billing labels', () => {

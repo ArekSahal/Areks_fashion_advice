@@ -5,7 +5,6 @@
  * path) and in Vitest. Reading the secret, network calls and token caching live in
  * supabase/functions/_shared/vertex.ts. Nothing here ever puts the service-account key in an error message.
  */
-import { DETECTION_PROMPT, DETECTION_RESPONSE_SCHEMA } from './detection.ts';
 import { TAGGING_PROMPT, TAGGING_RESPONSE_SCHEMA } from './tagging.ts';
 
 export const TAGGING_MODEL = 'gemini-3.5-flash-lite';
@@ -17,8 +16,6 @@ export const DEFAULT_TOKEN_URI = 'https://oauth2.googleapis.com/token';
 export const TAGGING_TEMPERATURE = 0.1;
 /** The JSON reply is ~300 tokens; this caps cost if the model rambles. */
 export const TAGGING_MAX_OUTPUT_TOKENS = 1024;
-/** Up to 8 garments × ~300 tokens each, plus headroom; caps cost if the model rambles. */
-export const DETECTION_MAX_OUTPUT_TOKENS = 4096;
 
 // ---------- Service-account key ----------
 
@@ -165,12 +162,13 @@ export interface InlineImage {
   data: string;
 }
 
-function buildJsonRequest(
+/** Gemini request: one image + prompt, JSON reply constrained by `schema`. Also used by src/lib/detection.ts. */
+export function buildJsonRequest(
   image: InlineImage,
   prompt: string,
   schema: unknown,
   maxOutputTokens: number,
-  feature: 'tag_item' | 'detect_garments',
+  feature: string,
 ) {
   return {
     contents: [{ role: 'user', parts: [{ inlineData: image }, { text: prompt }] }],
@@ -189,13 +187,6 @@ function buildJsonRequest(
 
 export function buildTaggingRequest(image: InlineImage) {
   return buildJsonRequest(image, TAGGING_PROMPT, TAGGING_RESPONSE_SCHEMA, TAGGING_MAX_OUTPUT_TOKENS, 'tag_item');
-}
-
-/** Multi-garment detection (#36): same model and settings as tagging, larger output cap. */
-export function buildDetectionRequest(image: InlineImage) {
-  return buildJsonRequest(
-    image, DETECTION_PROMPT, DETECTION_RESPONSE_SCHEMA, DETECTION_MAX_OUTPUT_TOKENS, 'detect_garments',
-  );
 }
 
 /** 1×1 grey PNG, so the free health check also exercises image input. */

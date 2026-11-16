@@ -109,8 +109,9 @@ item as "Needs tags" and never displays its unconfirmed tags as facts.
 **Detect garments in a wardrobe photo (#36, slice 2 built; Add flow in slice 3):** `detect-garments` takes
 `{ photo_id }` (a `wardrobe_photos` row the caller owns, read through RLS; its `image_path` must be the server-set
 `{user_id}/photos/{photo_id}/…`), applies the same face rule as `tag-item` (`faces_blurred_at` or
-`consent_face_analysis`), caps each user at 30 calls / 24 h, logs every Vertex call in `api_usage` (feature
-`detect_garments`) and returns up to 8 garments, most prominent first: `box` in the `source_box` format
+`consent_face_analysis`), caps each user at 30 calls / 24 h and the photo at the `process-image` size limit, logs every Vertex call in `api_usage` (feature
+`detect_garments`) and returns up to 8 garments, most prominent first (layered pieces such as a shirt under a knit stay separate; the two
+shoes of a pair are merged into one box): `box` in the `source_box` format
 (`{x, y, w, h}` fractions), `tags`, `confidence`, `needs_check`, `detection_confidence` and `uncertain` (leave unticked).
 It writes nothing; results aren't cached yet. Prompt, schema, parser and the box → pixel crop helper are in
 `src/lib/detection.ts`, which reuses the per-garment parser and schema from `src/lib/tagging.ts`.

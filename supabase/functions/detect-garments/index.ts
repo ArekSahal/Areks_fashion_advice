@@ -4,15 +4,15 @@
 // clothing_items.source_box format plus suggested tags; it writes no items (the Add flow saves the garments the user
 // confirms, slice 3). Every Vertex call is logged in api_usage with feature `detect_garments`.
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { DETECTION_SCHEMA_VERSION, parseDetectionResponse } from '../../../src/lib/detection.ts';
+import { DETECTION_SCHEMA_VERSION, buildDetectionRequest, parseDetectionResponse } from '../../../src/lib/detection.ts';
 import {
   TAGGING_MODEL,
   type Usage,
-  buildDetectionRequest,
   bytesToBase64,
   extractResponseText,
   parseUsage,
 } from '../../../src/lib/vertex.ts';
+import { IMAGE_LIMITS } from '../_shared/sanitize-image.ts';
 import { VertexError, callModel, loadVertexConfig, logAiUsage } from '../_shared/vertex.ts';
 
 const CORS = {
@@ -102,6 +102,11 @@ Deno.serve(async (req) => {
   if (fileError || !file) {
     console.error('detect-garments: photo download failed', fileError?.message);
     return json({ error: 'photo_unavailable' }, 409);
+  }
+  // Same cap as process-image enforces on upload, re-checked before base64 (which holds ~2.3x the bytes in memory).
+  if (file.size > IMAGE_LIMITS.clean.maxBytes) {
+    console.error('detect-garments: photo too large', file.size);
+    return json({ error: 'photo_too_large' }, 413);
   }
   const image = { mimeType: file.type || 'image/webp', data: bytesToBase64(new Uint8Array(await file.arrayBuffer())) };
 

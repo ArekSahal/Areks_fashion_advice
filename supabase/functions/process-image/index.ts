@@ -10,7 +10,7 @@
 // the photo to the AI without face consent. Clients can't set that column themselves (column grants).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { faceCheckLabel, facesBlurredAt } from '../_shared/face-check.ts';
-import { ImageFormatError, sanitizeImage, type ImageFormat } from '../_shared/sanitize-image.ts';
+import { IMAGE_LIMITS, ImageFormatError, sanitizeImage, type ImageFormat } from '../_shared/sanitize-image.ts';
 import { logUsage, usageLast24h } from '../_shared/usage.ts';
 
 const CORS = {
@@ -22,11 +22,7 @@ const CORS = {
 const QUARANTINE = 'uploads-quarantine';
 const PHOTOS = 'item-photos';
 
-// The app sends ≤ 1600 px / ≤ 400 px. The limits leave headroom but stop oversized or decompression-bomb files.
-const LIMITS = {
-  clean: { maxBytes: 5 * 1024 * 1024, maxSide: 2048 },
-  thumb: { maxBytes: 512 * 1024, maxSide: 640 },
-} as const;
+const LIMITS = IMAGE_LIMITS;
 
 const EXT: Record<ImageFormat, string> = { webp: 'webp', jpeg: 'jpg' };
 const MIME: Record<ImageFormat, string> = { webp: 'image/webp', jpeg: 'image/jpeg' };
