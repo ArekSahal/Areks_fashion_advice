@@ -483,14 +483,17 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
   );
 }
 
-/** Garment photo in a 4:5 photo well with an optional one-line label. `uri` null shows the empty well (loading). */
-export function ItemCard({ uri, label }: { uri: string | null; label?: string }) {
+/**
+ * Garment photo in a 4:5 photo well (or a 3:4 well for `shape="outfit"`) with an optional one-line label.
+ * `uri` null shows the empty well (loading).
+ */
+export function ItemCard({ uri, label, shape = 'item' }: { uri: string | null; label?: string; shape?: 'item' | 'outfit' }) {
   const t = useTheme();
   return (
     <View style={{ flex: 1, gap: t.space.xs }}>
       <View
         style={{
-          aspectRatio: t.aspect.item,
+          aspectRatio: t.aspect[shape],
           borderRadius: t.radius.md,
           overflow: 'hidden',
           backgroundColor: t.colours.surfaceSunken,
@@ -501,7 +504,7 @@ export function ItemCard({ uri, label }: { uri: string | null; label?: string })
             source={{ uri }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
-            accessibilityLabel={label ?? 'Wardrobe item'}
+            accessibilityLabel={label ?? (shape === 'outfit' ? 'Outfit photo' : 'Wardrobe item')}
           />
         ) : null}
       </View>
