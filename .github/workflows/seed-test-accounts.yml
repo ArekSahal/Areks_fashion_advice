@@ -1,0 +1,62 @@
+# Test accounts with a filled wardrobe (#35). Run by hand from the Actions tab.
+#   pick: search Unsplash for clothing photos and attach a draft list to the run (review it for faces, then commit it
+#         as scripts/seed/photos.json with reviewed_by filled in).
+#   seed: create or empty the 3 test accounts and add the reviewed photos through the normal pipeline.
+# Secrets (repository settings → Secrets and variables → Actions): UNSPLASH_ACCESS_KEY (pick; optional for seed),
+# SUPABASE_SERVICE_ROLE_KEY and SEED_ACCOUNT_PASSWORD (seed). The password is shared with owners outside the repo.
+name: Seed test accounts
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'pick = find candidate photos, seed = (re)create the test accounts'
+        type: choice
+        options: [pick, seed]
+        default: pick
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-test-accounts
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      # Only this script needs sharp, so it is not an app dependency.
+      - run: npm install --no-save sharp@0.34.5
+
+      - name: Pick candidate photos
+        if: inputs.mode == 'pick'
+        env:
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+        run: node --experimental-strip-types scripts/seed/seed-test-accounts.ts pick "$RUNNER_TEMP/photos.draft.json"
+
+      - name: Upload draft photo list
+        if: inputs.mode == 'pick'
+        uses: actions/upload-artifact@v4
+        with:
+          name: photos-draft
+          path: ${{ runner.temp }}/photos.draft.json
+
+      - name: Seed test accounts
+        if: inputs.mode == 'seed'
+        env:
+          SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL || 'https://emnkjfoccluygilkebbz.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_4kGFl0Nv7iTREHDc9wAfSw_5-Gqavom' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SEED_ACCOUNT_PASSWORD: ${{ secrets.SEED_ACCOUNT_PASSWORD }}
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+        run: node --experimental-strip-types scripts/seed/seed-test-accounts.ts seed

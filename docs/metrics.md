@@ -46,3 +46,7 @@ It captures the habit the whole product depends on (diary data feeds recommendat
 - A small `events` table (user_id, name, props jsonb, created_at) for client-only timings like "time to add item",
   RLS insert-own-only. Added in M1.
 - No personal data in event props; aggregated for the heartbeat.
+- **Leave out test accounts.** Every metric, cost-per-user number and anything shown to other users filters out
+  users whose `profiles.is_test` is true (the seeded accounts from #35), e.g.
+  `where user_id not in (select id from public.profiles where is_test)`. Their AI spend still counts toward the
+  total bill, reported as its own "seed/test" line.
