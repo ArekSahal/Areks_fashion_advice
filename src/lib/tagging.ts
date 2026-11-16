@@ -75,12 +75,8 @@ const FORMALITY_IDS = Object.keys(FORMALITY).map(Number) as Formality[];
 
 // ---------- Prompt ----------
 
-export const TAGGING_PROMPT = [
-  'You are an experienced personal stylist cataloguing one garment from a customer\'s wardrobe photo.',
-  'Tag the single most prominent clothing item, shoe or accessory in the photo. Ignore the background, the person',
-  'wearing it and any other items. Use only the allowed values in the response schema.',
-  '',
-  'Rules:',
+/** Per-field tagging rules, shared with the multi-garment detection prompt (src/lib/detection.ts). */
+export const TAG_RULES = [
   '- colours: up to 3, dominant colour first. Denim is "denim_blue"; cream and ecru are "off_white".',
   '- pattern: "solid" when there is no visible print; use "knit_texture" for cable or rib knits without a print.',
   '- fit: judge the cut of the garment, not how it hangs on the person. "cropped" means a short length.',
@@ -89,6 +85,15 @@ export const TAGGING_PROMPT = [
   '- seasons: the seasons it suits in a Northern European climate. Leave empty if it works all year.',
   '- occasions: where it would typically be worn.',
   '- confidence: for every field, how sure you are (0 to 1). Be honest; low confidence is useful.',
+];
+
+export const TAGGING_PROMPT = [
+  'You are an experienced personal stylist cataloguing one garment from a customer\'s wardrobe photo.',
+  'Tag the single most prominent clothing item, shoe or accessory in the photo. Ignore the background, the person',
+  'wearing it and any other items. Use only the allowed values in the response schema.',
+  '',
+  'Rules:',
+  ...TAG_RULES,
   '- garment_count: how many separate garments are clearly visible (a pair of shoes or a matching set counts',
   '  as one). is_garment: false if the photo shows no clothing, shoes or accessory at all.',
   'Menswear and womenswear are equally likely. Do not guess brand, size or the wearer\'s gender.',
@@ -107,25 +112,33 @@ const enumArray = (values: readonly string[], maxItems: number) => ({
 });
 const unit = { type: 'number', minimum: 0, maximum: 1 };
 
+/**
+ * JSON Schema properties for one garment's tags + confidences. Shared with multi-garment detection
+ * (src/lib/detection.ts), so both replies use the same taxonomy.
+ */
+export const GARMENT_TAG_PROPERTIES = {
+  category: nullableEnum(CATEGORY_IDS),
+  subcategory: nullableEnum(SUBCATEGORIES),
+  colours: enumArray(COLOUR_IDS, MAX_COLOURS),
+  pattern: nullableEnum(PATTERNS),
+  materials: enumArray(MATERIAL_IDS, MAX_MATERIALS),
+  fit: nullableEnum(FITS),
+  formality: nullableEnum(FORMALITY_IDS, 'integer'),
+  seasons: enumArray(SEASONS, SEASONS.length),
+  occasions: enumArray(OCCASIONS, OCCASIONS.length),
+  confidence: {
+    type: 'object',
+    properties: Object.fromEntries(TAG_FIELDS.map((f) => [f, unit])),
+    required: [...TAG_FIELDS],
+  },
+};
+
 export const TAGGING_RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
     is_garment: { type: 'boolean' },
     garment_count: { type: 'integer', minimum: 0 },
-    category: nullableEnum(CATEGORY_IDS),
-    subcategory: nullableEnum(SUBCATEGORIES),
-    colours: enumArray(COLOUR_IDS, MAX_COLOURS),
-    pattern: nullableEnum(PATTERNS),
-    materials: enumArray(MATERIAL_IDS, MAX_MATERIALS),
-    fit: nullableEnum(FITS),
-    formality: nullableEnum(FORMALITY_IDS, 'integer'),
-    seasons: enumArray(SEASONS, SEASONS.length),
-    occasions: enumArray(OCCASIONS, OCCASIONS.length),
-    confidence: {
-      type: 'object',
-      properties: Object.fromEntries(TAG_FIELDS.map((f) => [f, unit])),
-      required: [...TAG_FIELDS],
-    },
+    ...GARMENT_TAG_PROPERTIES,
   },
   required: ['is_garment', 'garment_count', ...TAG_FIELDS, 'confidence'],
 } as const;
@@ -204,33 +217,21 @@ const NEVER_DROP: readonly TagField[] = ['seasons'];
 /** Category and colours drive matching, so they're flagged when missing. Other empty fields are fine. */
 const REQUIRED: readonly TagField[] = ['category', 'colours'];
 
+export interface GarmentTags {
+  tags: ItemTags;
+  /** Model confidence per field (0–1). */
+  confidence: Partial<Record<TagField, number>>;
+  /** Fields the user should look at before saving. */
+  needsCheck: TagField[];
+  warnings: Extract<TaggingWarning, 'subcategory_mismatch'>[];
+}
+
 /**
- * Turns the model's reply (parsed JSON or the raw JSON string) into tags that satisfy the clothing_items
- * constraints. Never throws: a broken reply comes back as { ok: false, reason: 'invalid_response' } so the app can
- * fall back to manual tagging.
+ * Validates one garment's tag fields + `confidence` object against the taxonomy: drops unknown values and very weak
+ * guesses, derives the category from the subcategory and flags what the user should check. Shared by single-item
+ * tagging and multi-garment detection. Never throws; missing or junk fields come back empty and flagged.
  */
-export function parseTaggingResponse(raw: unknown): TaggingResult {
-  let data: unknown = raw;
-  if (typeof raw === 'string') {
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      return { ok: false, reason: 'invalid_response', message: 'The AI reply was not valid JSON.' };
-    }
-  }
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-    return { ok: false, reason: 'invalid_response', message: 'The AI reply was not an object.' };
-  }
-  const r = data as Record<string, unknown>;
-
-  if (r.is_garment === false) {
-    return {
-      ok: false,
-      reason: 'not_garment',
-      message: "We couldn't find a piece of clothing in this photo. Try a closer shot of one item.",
-    };
-  }
-
+export function parseGarmentTags(r: Record<string, unknown>): GarmentTags {
   const tags: ItemTags = {
     category: pick(r.category, CATEGORY_IDS, 'category'),
     subcategory: pick(r.subcategory, SUBCATEGORIES, 'subcategory'),
@@ -263,7 +264,7 @@ export function parseTaggingResponse(raw: unknown): TaggingResult {
 
   // 2. The subcategory is the more specific guess and fixes the category (an overshirt is outerwear even if the
   //    model said "top"). If the two disagree, keep the subcategory and ask the user to check the category.
-  const warnings: TaggingWarning[] = [];
+  const warnings: GarmentTags['warnings'] = [];
   if (tags.subcategory !== null) {
     const expected = categoryOf(tags.subcategory);
     if (tags.category !== null && tags.category !== expected) {
@@ -283,9 +284,50 @@ export function parseTaggingResponse(raw: unknown): TaggingResult {
     flagged.delete('category');
   }
 
-  if (typeof r.garment_count === 'number' && r.garment_count > 1) warnings.push('multiple_garments');
+  return { tags, confidence, needsCheck: TAG_FIELDS.filter((f) => flagged.has(f)), warnings };
+}
 
-  return { ok: true, tags, confidence, needsCheck: TAG_FIELDS.filter((f) => flagged.has(f)), warnings };
+/** The model's reply (parsed JSON or the raw JSON string) as a plain object, or why it isn't one. Never throws. */
+export function readReplyObject(
+  raw: unknown,
+): { ok: true; data: Record<string, unknown> } | { ok: false; message: string } {
+  let data: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return { ok: false, message: 'The AI reply was not valid JSON.' };
+    }
+  }
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return { ok: false, message: 'The AI reply was not an object.' };
+  }
+  return { ok: true, data: data as Record<string, unknown> };
+}
+
+/**
+ * Turns the model's reply (parsed JSON or the raw JSON string) into tags that satisfy the clothing_items
+ * constraints. Never throws: a broken reply comes back as { ok: false, reason: 'invalid_response' } so the app can
+ * fall back to manual tagging.
+ */
+export function parseTaggingResponse(raw: unknown): TaggingResult {
+  const reply = readReplyObject(raw);
+  if (!reply.ok) return { ok: false, reason: 'invalid_response', message: reply.message };
+  const r = reply.data;
+
+  if (r.is_garment === false) {
+    return {
+      ok: false,
+      reason: 'not_garment',
+      message: "We couldn't find a piece of clothing in this photo. Try a closer shot of one item.",
+    };
+  }
+
+  const { tags, confidence, needsCheck, warnings } = parseGarmentTags(r);
+  const allWarnings: TaggingWarning[] = [...warnings];
+  if (typeof r.garment_count === 'number' && r.garment_count > 1) allWarnings.push('multiple_garments');
+
+  return { ok: true, tags, confidence, needsCheck, warnings: allWarnings };
 }
 
 /** Older suggestions kept in tag_confidence.history after a forced re-tag (newest last). */
