@@ -34,6 +34,13 @@ Runner-up: GPT-5.6 Luna if Google setup is a hassle.
 (thinking counts as output); every call is logged in the cost table. The one-off `vertex-check` health check is
 retired (returns 410); its code is in PR #25's history if the key ever needs re-checking.
 
+**Garment detection (#36):** `detect-garments` uses the same model, location and settings as tagging, with
+`DETECTION_PROMPT` / `DETECTION_RESPONSE_SCHEMA` from `src/lib/detection.ts`. Boxes come back in Gemini's native
+`box_2d` format (`[ymin, xmin, ymax, xmax]` on a 0–1000 grid) and are converted to `source_box` fractions. Output is
+capped at 4,096 tokens (up to 8 garments × ~300 tokens); logged as feature `detect_garments`. Estimated cost: about
+$0.002–0.012 per photo (~3k input tokens, 0.6k–4k output), i.e. 2–8 single-item tagging calls' worth (not yet
+measured).
+
 **Deploying Edge Functions:** always deploy from the repo files exactly as committed (Supabase CLI
 `supabase functions deploy <name>`, or MCP with every imported file at its repo path, e.g. `src/lib/tagging.ts`).
 Never upload hand-edited or trimmed copies: functions share `src/lib/*.ts` with the app, and a trimmed copy
