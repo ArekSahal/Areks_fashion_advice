@@ -10,8 +10,10 @@ Channel3 is a product catalogue API covering many brands and shops. We use it fo
   secret `CHANNEL3_API_KEY`. The app never calls Channel3 directly.
 - SDK: `@channel3/sdk` 4.x (`import { Channel3 } from '@channel3/sdk'`, requests use snake_case fields).
   In Deno Edge Functions import via `npm:@channel3/sdk@4`. Plain `fetch` is fine too.
-- Locale: we always send `config: { country: 'SE', currency: 'SEK', language: 'sv' }` (fallback `country: 'EU', currency: 'EUR'`
-  if Swedish results are thin). Locale decides which shops' offers come back.
+- Locale: we always send `config: { country: 'SE', currency: 'SEK', language: 'en' }` (fallback `country: 'EU', currency: 'EUR'`
+  if Swedish results are thin). Country and currency decide which shops' offers come back; `language: 'en'` keeps titles
+  in English because the app is English-only (see [`DECISIONS.md`](DECISIONS.md)). The product detail call takes the same
+  three values as query parameters.
 
 ## Endpoints we use
 
@@ -37,6 +39,19 @@ seconds of latency, so only behind an explicit user action.
   searched after the in-app marketplace and before new items. Labelled "buy used" in the UI, same as marketplace items.
 - **Default filters:** `availability` defaults to in stock and `conditions` to new. Keep those defaults unless we ask for used.
 - `limit` max 30; we use 6–10 per garment.
+
+## M1.5 Shop search (`channel3-search`, built 2026-11-15)
+- Runs only when the user taps **Search** (or opens a card). Changing filters never triggers a call.
+- Input: free text (≤ 100 chars) plus picker filters: category (added to the query as a word, since category slugs
+  need a paid lookup), gender, max price (500 / 1,000 / 2,000 SEK), second-hand only. Size isn't a Channel3 filter, so it's left out for now.
+- **One credit per uncached search:** `conditions: ['new', 'used']` returns both kinds in one call, and the function
+  ranks second-hand first (Channel3 order kept within each group). "Second-hand only" sends `['used']`.
+- Best offer per product: in stock → used → cheapest → highest commission (tie-breaker only).
+- Cache hit (same normalised query + filters within 24 h): the stored id list is refreshed with the free product detail
+  call, so prices and buy links are always fresh. If that fails, the card shows from `external_products` without a price.
+- Buy links older than 15 minutes are refreshed with the free `offer` action before opening.
+- Logging: each paid search writes `api_usage` (provider `channel3`, feature `shop_search`, 1 credit) **before** the call;
+  if the log fails, no call is made. Logic and tests: `src/lib/shop.ts`, `src/lib/shop.test.ts`.
 
 ## Caching rules (important)
 Channel3 says: **cache IDs, not data**. Prices, stock and offer URLs change, and offer URLs are short-lived affiliate links.

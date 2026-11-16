@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { EmptyState, Screen, SegmentedControl, Text } from '@/ui';
+import { ShopView } from '@/ui/ShopView';
 
 type MarketView = 'second_hand' | 'shop';
 
@@ -9,13 +10,13 @@ const VIEWS = [
 ] as const satisfies readonly { value: MarketView; label: string }[];
 
 /**
- * Market tab (docs/DECISIONS.md): second-hand from other users (M4) and the Channel3 Shop (M1.5).
- * Both are placeholders until those milestones ship.
+ * Market tab (docs/DECISIONS.md): second-hand from other users (M4, placeholder until then) and the Channel3 Shop
+ * (M1.5, search only; the AI stylist comes after M3).
  */
 export default function Marketplace() {
   const [view, setView] = useState<MarketView>('second_hand');
   return (
-    <Screen>
+    <Screen scroll>
       <Text variant="title">Market</Text>
       <SegmentedControl options={VIEWS} value={view} onChange={setView} />
       {view === 'second_hand' ? (
@@ -24,10 +25,7 @@ export default function Marketplace() {
           body="Soon you can sell pieces you don’t wear and find second-hand clothes that fit your wardrobe."
         />
       ) : (
-        <EmptyState
-          title="Shop online stores"
-          body="Soon you can search clothes from online shops here, with second-hand offers first."
-        />
+        <ShopView />
       )}
     </Screen>
   );

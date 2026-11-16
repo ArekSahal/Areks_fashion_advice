@@ -15,7 +15,7 @@
 - Add item via camera/gallery, EXIF stripping, background removal
 - AI tagging with user confirmation; wardrobe grid with filters
 
-## M1.5: Shop (Channel3)
+## M1.5: Shop (Channel3), search in progress (#34)
 - **Marketplace** tab with two sections: second-hand from other users (filled in M4) and **Shop** (Channel3)
 - Shop: search + filters (category, colour, size, price, ships to Sweden), product cards, `channel3-search` Edge Function,
   `external_products` cache; "you already own something similar" from item tags

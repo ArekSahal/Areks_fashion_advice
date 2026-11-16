@@ -7,6 +7,8 @@ import type { createClient } from 'npm:@supabase/supabase-js@2';
 type Admin = ReturnType<typeof createClient>;
 
 export type UsageRow = {
+  /** Optional, so a caller that logs before the call can mark the same row failed afterwards. */
+  id?: string;
   user_id: string;
   feature: string;
   provider: string;
@@ -42,4 +44,10 @@ export async function logUsage(admin: Admin, row: UsageRow): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+/** Marks a row logged before a provider call as failed (ok = false), e.g. after a timeout or an error status. */
+export async function markUsageFailed(admin: Admin, id: string): Promise<void> {
+  const { error } = await admin.from('api_usage').update({ ok: false }).eq('id', id);
+  if (error) console.warn('usage: mark failed did not save', error.message);
 }

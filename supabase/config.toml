@@ -43,6 +43,9 @@ verify_jwt = false
 [functions.tag-item]
 verify_jwt = false
 
+[functions.channel3-search]
+verify_jwt = false
+
 [functions.detect-garments]
 verify_jwt = false
 
