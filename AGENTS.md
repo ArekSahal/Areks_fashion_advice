@@ -108,6 +108,11 @@ Pick the case that fits. Ask on the **issue**, not only in the PR, and add it to
 3. **Done, waiting for test + merge:** mark the PR ready for review. A PR is only "ready" when
    merging is the one thing left.
 
+**When an owner has answered:** as soon as @ArekSahal or @Yolkem23 has commented on a `needs-owner`
+issue with an answer (a command or a plain reply), remove the `needs-owner` label in the same run that
+reads the answer, and remove the item from "Waiting on owners". Record a decision in `docs/DECISIONS.md`.
+Keep the label only if the reply asks a follow-up question or the owners disagree.
+
 **No stacking:** don't start a branch on top of an unmerged PR. Pick other unblocked work instead,
 or wait. If nothing is unblocked, say so in the heartbeat.
 
@@ -123,7 +128,7 @@ The pinned issue **📡 Heartbeat** (#1) is where owners and agents meet.
   5. `_Last updated: <date>_`
 - **Comments are the update log.** Each run:
   1. Reads new comments in the Heartbeat issue, plus open issues and PRs, plus `docs/`.
-  2. Acts on owner commands (below).
+  2. Acts on owner commands (below), and removes `needs-owner` from every issue an owner has answered.
   3. Does the next unblocked piece of work on the roadmap (in a branch + PR).
   4. Edits the issue body (live status above).
   5. Posts a comment in this format, in this order:

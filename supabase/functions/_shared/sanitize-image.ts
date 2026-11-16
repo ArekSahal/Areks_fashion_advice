@@ -31,6 +31,16 @@ function view(bytes: Uint8Array): DataView {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
+/**
+ * Size limits for stored photos. The app sends ≤ 1600 px / ≤ 400 px; the limits leave headroom but stop oversized
+ * or decompression-bomb files. process-image enforces them on upload; detect-garments re-checks `clean` before it
+ * base64-encodes a photo for the AI.
+ */
+export const IMAGE_LIMITS = {
+  clean: { maxBytes: 5 * 1024 * 1024, maxSide: 2048 },
+  thumb: { maxBytes: 512 * 1024, maxSide: 640 },
+} as const;
+
 export function isWebp(bytes: Uint8Array): boolean {
   if (bytes.byteLength < 12) return false;
   const dv = view(bytes);

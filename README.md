@@ -45,7 +45,7 @@ Only comments from @ArekSahal and @Yolkem23 count as commands. If you two disagr
 You can merge a PR yourself on GitHub, or comment `/approve #N` and the agent merges it.
 
 ### How agents ask you for things
-- **A decision before building:** a comment on the issue with options and a recommendation, labelled `needs-owner`. No PR yet.
+- **A decision before building:** a comment on the issue with options and a recommendation, labelled `needs-owner`. No PR yet. The agent removes the label once you've replied on the issue.
 - **Stuck partway** (e.g. a key or setting only you can add): a comment on the issue, plus a **draft** PR holding the work so far.
 - **Ready to test and merge:** a normal PR marked ready for review.
 
