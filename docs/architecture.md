@@ -11,7 +11,7 @@ _Owner: Platform agent. v1, 2026-11-10. Updated whenever a milestone changes the
  Supabase (eu-north-1, Stockholm)
    ├─ Auth ............ email + Google/Apple
    ├─ Postgres ........ all app data, RLS on every table, pgvector for embeddings
-   ├─ Storage ......... item photos, outfit photos, inspiration photos (private buckets)
+   ├─ Storage ......... item + wardrobe/outfit photos, inspiration photos (private buckets)
    └─ Edge Functions .. everything that needs a secret or costs money
          ├─ tag-item ............ vision LLM → suggested tags
          ├─ detect-garments ..... vision LLM → every garment in a wardrobe photo (box + tags), #36
@@ -37,9 +37,10 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 |---|---|---|
 | `profiles` | id (= auth.users.id), display_name, locale, style_unlocked_at, consent_* flags | owner only; created by trigger on sign-up |
 | `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, tags_confirmed_at, source_photo_id, source_box jsonb (server-set), embedding vector, created_at | owner only; marketplace reads go through `listings`. **The tag columns hold unconfirmed AI suggestions until `tags_confirmed_at` is set** (the original suggestion stays in `tag_confidence.suggested`). Every consumer (recommend, outfits, style profile, listings, search) must filter `tags_confirmed_at is not null` or treat the tags as suggestions |
-| `wardrobe_photos` | id, owner_id, image_path, thumb_path, faces_blurred_at, taken_at, created_at | owner only. The original photo items were cut from (Wardrobe → Outfits, #36). Paths and `faces_blurred_at` are server-set. Separate from the M2 diary so wear counts stay honest |
-| `outfits` | id, owner_id, worn_on date, photo_path, notes | owner only |
-| `outfit_items` | outfit_id, item_id | owner only (via outfit); wear counts and "last worn" come from here (view `item_wear_stats`) |
+| `wardrobe_photos` | id, owner_id, image_path, thumb_path, faces_blurred_at, taken_at, created_at | owner only. The original photo items were cut from (Wardrobe → Outfits, #36). Paths and `faces_blurred_at` are server-set. A photo is not a "worn" entry by itself (wear counts stay honest); a diary entry can point at one as its outfit photo |
+| `outfits` (built in M2, #56) | id, owner_id, worn_on date (user's local day), photo_id → `wardrobe_photos` (nullable), notes (≤ 500), created_at, updated_at | owner only. Outfit diary: **one entry per user per day** (`unique (owner_id, worn_on)`). The photo reuses `wardrobe_photos` (no separate outfit-photo table or bucket); deleting the photo only clears `photo_id`. Clients write `worn_on`, `photo_id`, `notes` |
+| `outfit_items` (built in M2, #56) | outfit_id, item_id, owner_id, created_at | owner only. Entry and item must have the same owner: composite foreign keys `(outfit_id, owner_id)` → `outfits` and `(item_id, owner_id)` → `clothing_items`, so it holds for every role and never reveals other users' ids. Deleting the entry or the item removes the link. No client update (delete + insert) |
+| `item_wear_stats` (view, M2) | item_id, owner_id, wear_count, last_worn_on | `security_invoker = true`, signed-in select only. One row per item of the caller (0 / null if never worn). Derived from `outfits` + `outfit_items`, never stored |
 | `listings` | id, item_id, seller_id, price, currency, condition, size, city, status (active/reserved/sold/withdrawn) | **signed-in users** read active listings through `listings_public` (a view with `security_invoker = true`, safe columns only, no exact location); seller writes. Never a plain view (views bypass RLS by default) |
 | `conversations` / `messages` | buyer, seller, listing; sender, body, created_at | only the two participants |
 | `style_profiles` | owner_id, computed_at, summary jsonb | owner only |
@@ -57,7 +58,6 @@ enums as `text` + check constraints mirroring `src/lib/taxonomy.ts`.
 | Bucket | Path | Access |
 |---|---|---|
 | `item-photos` | `{user_id}/{item_id}/{clean|thumb}.webp` (`.jpg` for photos from Safari) | private; owner via RLS on `storage.objects` |
-| `outfit-photos` | `{user_id}/{outfit_id}.webp` | private |
 | `inspiration` | `{user_id}/{request_id}/…` | private; crops shared with Channel3 only via ≤ 10-min signed URLs |
 | `listing-photos` | `{user_id}/{listing_id}/…` | signed-in read while listing active (copies, not the private originals) |
 | `uploads-quarantine` | `{user_id}/{upload_id}` | write-own only, **no client read**; Edge Function strips EXIF + moves the file, then deletes it |
@@ -116,7 +116,12 @@ shoes of a pair are merged into one box): `box` in the `source_box` format
 It writes nothing; results aren't cached yet. Prompt, schema, parser and the box → pixel crop helper are in
 `src/lib/detection.ts`, which reuses the per-garment parser and schema from `src/lib/tagging.ts`.
 
-**Post outfit (M2):** photo (optional) + pick items → insert `outfits` + `outfit_items` → wear stats update via view.
+**Post outfit (M2, #56; data model built in slice 1):** pick items (and optionally a photo, uploaded through the usual
+`process-image` path as a `wardrobe_photos` row) → upsert today's `outfits` row (`worn_on` = the device's local date;
+one per day, so posting again edits that day) → insert `outfit_items` (the app sends only `outfit_id` + `item_id`;
+`owner_id` defaults to `auth.uid()` and the foreign keys reject someone else's item or photo) → wear count and
+"last worn" come from `item_wear_stats`, nothing to update. Items cut from a wardrobe photo are not "worn" until a
+diary entry links them.
 
 **What goes with this (M3):** `recommend(item_id)` → candidates from the user's items (+ active listings later) →
 rule score + embedding similarity → top 10 with reasons → log `shown` in `recommendation_feedback`.
