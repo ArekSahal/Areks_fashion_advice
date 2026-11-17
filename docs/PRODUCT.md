@@ -33,7 +33,7 @@ It is English-only and made for both men and women (see `DECISIONS.md`, 2026-11-
 ## Data model (starting point; propose changes as migrations)
 profiles, clothing_items (owner, images, category, colours[], pattern, material, brand, size,
 season[], formality, embedding, status: owned|for_sale|sold|archived), outfits (owner, date,
-photo from wardrobe_photos, notes; one per day), outfit_items, wardrobe_photos, listings (item, price, condition, location, status),
+photo from wardrobe_photos, occasion, notes; several per day allowed), outfit_items, wardrobe_photos, listings (item, price, condition, location, status),
 messages, style_profiles, inspiration_requests, external_products (Channel3 product IDs plus display fields only),
 recommendation_feedback.
 The current schema lives in `docs/architecture.md` and `supabase/migrations/`.

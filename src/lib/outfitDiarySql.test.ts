@@ -1,10 +1,14 @@
 // #56: the outfit diary (outfits, outfit_items, item_wear_stats) is owner-only, can only link the user's own photo and
-// items, and derives wear counts instead of storing them.
+// items, and derives wear counts instead of storing them. Behaviour (RLS, cascades) is tested in
+// supabase/tests/outfit_diary_rls.sql.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { OCCASIONS } from './taxonomy';
 
 const dir = join(process.cwd(), 'supabase/migrations');
+const DIARY_MIGRATION = '20261117090000_outfit_diary.sql';
+const diarySql = readFileSync(join(dir, DIARY_MIGRATION), 'utf8').replace(/--.*$/gm, '');
 const sql = readdirSync(dir)
   .filter((f) => f.endsWith('.sql'))
   .sort()
@@ -42,8 +46,23 @@ describe('outfits (diary entries)', () => {
     expectNoTableWideWrites('outfits', /owner_id|\bid\b|created_at|updated_at/i);
   });
 
-  it('allows one entry per user per day and only a photo with the same owner', () => {
-    expect(sql).toMatch(/unique \(owner_id, worn_on\)/i);
+  it('allows several entries per day (indexed, not unique) and no future days', () => {
+    expect(sql).not.toMatch(/unique\s*\(\s*owner_id\s*,\s*worn_on\s*\)/i);
+    expect(sql).toMatch(/create index \w+ on public\.outfits \(owner_id, worn_on desc\)/i);
+    expect(diarySql).toMatch(/worn_on date not null check \(worn_on <= current_date \+ 1\)/i);
+  });
+
+  it('constrains occasion to the taxonomy and lets clients write it', () => {
+    const constraint = diarySql.match(/occasion text check \(occasion in \(([^)]*)\)\)/i);
+    expect(constraint, 'occasion check constraint').not.toBeNull();
+    const values = [...(constraint?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1] ?? '').sort();
+    expect(values).toEqual([...OCCASIONS].sort());
+    for (const priv of ['insert', 'update']) {
+      expect(clientGrants('outfits').some((g) => new RegExp(`\\b${priv}\\s*\\([^)]*\\boccasion\\b`, 'i').test(g))).toBe(true);
+    }
+  });
+
+  it('links only a photo with the same owner', () => {
     expect(sql).toMatch(
       /foreign key \(photo_id, owner_id\)\s+references public\.wardrobe_photos \(id, owner_id\) on delete set null \(photo_id\)/i,
     );
@@ -79,8 +98,11 @@ describe('item_wear_stats', () => {
     expect(clientGrants('item_wear_stats')).toEqual(['select']);
   });
 
-  it('derives wear counts instead of storing them', () => {
-    expect(sql).not.toMatch(/\b(wear_count|last_worn_on)\b[^,;]*\b(integer|int|date)\b[^,;]*(default|not null)/i);
-    expect(sql).not.toMatch(/alter table public\.clothing_items\s+add column (wear_count|last_worn)/i);
+  it('derives wear counts (distinct days) instead of storing them', () => {
+    const view = sql.match(/create view public\.item_wear_stats[\s\S]*?;/i)?.[0] ?? '';
+    expect(view).toMatch(/count\(distinct o\.worn_on\)::integer as wear_count/i);
+    expect(view).toMatch(/max\(o\.worn_on\) as last_worn_on/i);
+    // Outside the view, no table, column, trigger or function may hold a wear counter.
+    expect(sql.replace(view, '')).not.toMatch(/wear_count|last_worn|times_worn|worn_count/i);
   });
 });

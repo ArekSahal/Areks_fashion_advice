@@ -1,6 +1,6 @@
--- #56 slice 1 (M2): the outfit diary. One entry per user per day (`outfits`), the items worn (`outfit_items`) and an
--- optional outfit photo. The photo reuses `wardrobe_photos` (same upload / EXIF / face-blur pipeline) instead of a
--- second photo table or an outfit-photos bucket. Wear count and "last worn" are derived (`item_wear_stats`), never
+-- #56 slice 1 (M2): the outfit diary. Diary entries (`outfits`, several per day allowed, e.g. an evening change), the
+-- items worn (`outfit_items`) and an optional outfit photo. The photo reuses `wardrobe_photos` (same upload / EXIF /
+-- face-blur pipeline) instead of a second photo table or an outfit-photos bucket. Wear count and "last worn" are derived (`item_wear_stats`), never
 -- stored, so they can't drift from the entries.
 -- Same-owner rule: an entry may only point at the user's own photo and items. That is enforced with composite foreign
 -- keys on (id, owner_id), so it holds for every role (also the service role and RLS-exempt Edge Functions), and a
@@ -17,21 +17,26 @@ create table public.outfits (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   -- The user's local calendar day (the app sends it; the server's UTC date can be a day off in Sweden around midnight).
-  worn_on date not null,
+  -- Not in the future: a diary entry is something worn, not planned (+1 day for time zones ahead of UTC).
+  worn_on date not null check (worn_on <= current_date + 1),
   -- Optional outfit photo. Deleting the photo keeps the entry and its items, only the photo link is cleared.
   photo_id uuid,
+  -- What the outfit was for. Same values as clothing_items.occasions (src/lib/taxonomy.ts OCCASIONS).
+  occasion text check (occasion in (
+    'everyday', 'work', 'evening', 'party', 'wedding', 'sport', 'outdoor', 'travel', 'lounge'
+  )),
   notes text check (char_length(notes) <= 500),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint outfits_owner_day_key unique (owner_id, worn_on),
   constraint outfits_id_owner_key unique (id, owner_id),
   constraint outfits_photo_same_owner_fkey foreign key (photo_id, owner_id)
     references public.wardrobe_photos (id, owner_id) on delete set null (photo_id)
 );
 
 comment on table public.outfits is
-  'Outfit diary: what the user wore on a day (one entry per user per day). Owner-only via RLS. Deleted with the auth user.';
+  'Outfit diary: what the user wore on a day (several entries per day allowed). Owner-only via RLS. Deleted with the auth user.';
 
+create index outfits_owner_worn_on_idx on public.outfits (owner_id, worn_on desc);
 create index outfits_photo_idx on public.outfits (photo_id) where photo_id is not null;
 
 alter table public.outfits enable row level security;
@@ -57,8 +62,8 @@ create policy "outfits: owner can delete"
 revoke all on public.outfits from anon;
 revoke all on public.outfits from authenticated;
 grant select, delete on public.outfits to authenticated;
-grant insert (worn_on, photo_id, notes) on public.outfits to authenticated;
-grant update (worn_on, photo_id, notes) on public.outfits to authenticated;
+grant insert (worn_on, photo_id, occasion, notes) on public.outfits to authenticated;
+grant update (worn_on, photo_id, occasion, notes) on public.outfits to authenticated;
 
 create trigger outfits_set_updated_at
   before update on public.outfits
@@ -104,8 +109,8 @@ revoke all on public.outfit_items from authenticated;
 grant select, delete on public.outfit_items to authenticated;
 grant insert (outfit_id, item_id) on public.outfit_items to authenticated;
 
--- Wear count and last worn per item, derived from the diary. Every item of the caller is listed (0 / null if never
--- worn), which style analysis needs for "items never worn". security_invoker: the caller's RLS applies to every table
+-- Wear count and last worn per item, derived from the diary. wear_count counts distinct days, so an item in two entries
+-- on the same day (outfit change) is one wear. Every item of the caller is listed (0 / null if never worn), which style analysis needs for "items never worn". security_invoker: the caller's RLS applies to every table
 -- read here, so a user only ever sees their own items.
 create view public.item_wear_stats
   with (security_invoker = true)
@@ -113,7 +118,7 @@ as
 select
   ci.id as item_id,
   ci.owner_id,
-  count(o.id)::integer as wear_count,
+  count(distinct o.worn_on)::integer as wear_count,
   max(o.worn_on) as last_worn_on
 from public.clothing_items ci
 left join public.outfit_items oi on oi.item_id = ci.id and oi.owner_id = ci.owner_id
@@ -121,7 +126,7 @@ left join public.outfits o on o.id = oi.outfit_id and o.owner_id = oi.owner_id
 group by ci.id, ci.owner_id;
 
 comment on view public.item_wear_stats is
-  'Per item: how often it was logged in the outfit diary and the last day. Derived, security_invoker (owner-only via RLS).';
+  'Per item: on how many days it was logged in the outfit diary and the last day. Derived, security_invoker (owner-only via RLS).';
 
 revoke all on public.item_wear_stats from anon;
 revoke all on public.item_wear_stats from authenticated;
