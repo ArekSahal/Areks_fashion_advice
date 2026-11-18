@@ -1,5 +1,5 @@
 import * as Linking from 'expo-linking';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { gridColumns } from '@/lib/photo';
 import {
@@ -15,6 +15,8 @@ import {
   type ShopMaxPrice,
   type ShopProduct,
 } from '@/lib/shop';
+import { listMyConfirmedItemTags } from '@/lib/items';
+import { inferProductTags, ownedSimilar, ownedSimilarLabel, type OwnedItemTags } from '@/lib/ownedSimilar';
 import { fetchOfferUrl, freshOfferUrl, searchShop, type ShopResults } from '@/lib/shopClient';
 import { Button, Chip, ChipGroup, EmptyState, ItemCard, PhotoGrid, Text, TextField } from './components';
 import { useTheme } from './theme';
@@ -26,15 +28,18 @@ const SKELETON = ['a', 'b', 'c', 'd'];
 const COMMISSION_LABEL = 'Shop link · we may earn a commission';
 const PRICE_OPTIONS = SHOP_MAX_PRICES.map((p) => ({ value: String(p) as `${ShopMaxPrice}`, label: `Under ${formatPrice(p, 'SEK')}` }));
 
-/** One shop result: product photo, title, brand, price and whether the offer is second-hand. */
-function ProductCard({ product, onOpen }: { product: ShopProduct; onOpen: () => void }) {
+/**
+ * One shop result: product photo, title, brand, price, whether the offer is second-hand, and "You own N like this"
+ * when the user's confirmed wardrobe has a similar item.
+ */
+function ProductCard({ product, ownedLabel, onOpen }: { product: ShopProduct; ownedLabel: string | null; onOpen: () => void }) {
   const t = useTheme();
   const offer = product.offer;
   const used = offer?.condition === 'used';
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}. Opens the shop`}
+      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}${ownedLabel ? `. ${ownedLabel}` : ''}. Opens the shop`}
       onPress={onOpen}
       style={{ gap: t.space.xs }}
     >
@@ -76,6 +81,11 @@ function ProductCard({ product, onOpen }: { product: ShopProduct; onOpen: () => 
       <Text variant="caption" numberOfLines={1}>
         {offer ? `${formatPrice(offer.price, offer.currency)} · ${offer.domain}` : 'Tap to see price'}
       </Text>
+      {ownedLabel ? (
+        <Text variant="caption" numberOfLines={1}>
+          {ownedLabel}
+        </Text>
+      ) : null}
       <Text variant="caption" muted numberOfLines={1}>
         {COMMISSION_LABEL}
       </Text>
@@ -100,6 +110,20 @@ export function ShopView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  // Confirmed wardrobe tags for "You own N like this", read with every search so newly added items count. A plain
+  // database read (no AI, no Channel3); if it fails the cards just don't show the line.
+  const [owned, setOwned] = useState<OwnedItemTags[]>([]);
+  // The category filter of the search the results came from (not the chip as it is now).
+  const [searchedCategory, setSearchedCategory] = useState<ShopCategory | null>(null);
+
+  const ownedLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const p of results?.products ?? []) {
+      const label = ownedSimilarLabel(ownedSimilar(inferProductTags(p, searchedCategory), owned).length);
+      if (label) labels.set(p.id, label);
+    }
+    return labels;
+  }, [results, owned, searchedCategory]);
 
   const canSearch = query.trim().length > 0 || category !== null;
 
@@ -108,12 +132,15 @@ export function ShopView() {
     setLoading(true);
     setError(null);
     try {
-      setResults(
-        await searchShop({
-          query,
-          filters: { category, gender, maxPrice: maxPrice ? (Number(maxPrice) as ShopMaxPrice) : null, usedOnly },
-        }),
-      );
+      const ownedRead = listMyConfirmedItemTags().catch(() => null);
+      const found = await searchShop({
+        query,
+        filters: { category, gender, maxPrice: maxPrice ? (Number(maxPrice) as ShopMaxPrice) : null, usedOnly },
+      });
+      const ownedNow = await ownedRead;
+      if (ownedNow) setOwned(ownedNow);
+      setSearchedCategory(category);
+      setResults(found);
     } catch {
       setError('The shop isn’t available right now. Try again in a moment.');
     } finally {
@@ -187,7 +214,7 @@ export function ShopView() {
             items={results.products}
             columns={columns}
             keyOf={(p) => p.id}
-            renderItem={(p) => <ProductCard product={p} onOpen={() => open(p)} />}
+            renderItem={(p) => <ProductCard product={p} ownedLabel={ownedLabels.get(p.id) ?? null} onOpen={() => open(p)} />}
           />
           <Text variant="caption" muted>
             Prices and stock come from each shop and can change.

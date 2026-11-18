@@ -6,6 +6,7 @@ import {
   type TagColumns,
   type TagErrorKind,
 } from './confirmTags';
+import type { OwnedItemTags } from './ownedSimilar';
 import { newUploadId, PHOTO_MIME, quarantinePaths, type PreparedPhoto } from './photo';
 import { supabase } from './supabase';
 
@@ -118,4 +119,18 @@ export async function saveConfirmedTags(itemId: string, update: ConfirmedUpdate)
   const { data, error } = await supabase.from('clothing_items').update(update).eq('id', itemId).select('id');
   if (error) throw error;
   if (!data?.length) throw new Error('Item not found');
+}
+
+/**
+ * Category, subcategory and colours of the signed-in user's confirmed items, for "You own N like this" in the Shop
+ * (src/lib/ownedSimilar.ts). Unconfirmed AI suggestions are left out. RLS only returns your own rows.
+ */
+export async function listMyConfirmedItemTags(): Promise<OwnedItemTags[]> {
+  const { data, error } = await supabase
+    .from('clothing_items')
+    .select('id, category, subcategory, colours')
+    .not('tags_confirmed_at', 'is', null)
+    .limit(500);
+  if (error) throw error;
+  return (data ?? []) as OwnedItemTags[];
 }
