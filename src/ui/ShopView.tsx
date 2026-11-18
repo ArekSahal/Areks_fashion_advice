@@ -15,6 +15,7 @@ import {
   type ShopMaxPrice,
   type ShopProduct,
 } from '@/lib/shop';
+import { useAuth } from '@/lib/auth';
 import { listMyConfirmedItemTags } from '@/lib/items';
 import { inferProductTags, ownedSimilar, ownedSimilarLabel, type OwnedItemTags } from '@/lib/ownedSimilar';
 import { fetchOfferUrl, freshOfferUrl, searchShop, type ShopResults } from '@/lib/shopClient';
@@ -101,6 +102,8 @@ export function ShopView() {
   const t = useTheme();
   const { width } = useWindowDimensions();
   const columns = gridColumns(width);
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<ShopCategory | null>(null);
   const [gender, setGender] = useState<ShopGender | null>(null);
@@ -132,7 +135,7 @@ export function ShopView() {
     setLoading(true);
     setError(null);
     try {
-      const ownedRead = listMyConfirmedItemTags().catch(() => null);
+      const ownedRead = userId ? listMyConfirmedItemTags(userId).catch(() => null) : Promise.resolve(null);
       const found = await searchShop({
         query,
         filters: { category, gender, maxPrice: maxPrice ? (Number(maxPrice) as ShopMaxPrice) : null, usedOnly },

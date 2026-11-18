@@ -53,8 +53,9 @@ seconds of latency, so only behind an explicit user action.
 - Logging: each paid search writes `api_usage` (provider `channel3`, feature `shop_search`, 1 credit) **before** the call;
   if the log fails, no call is made. Logic and tests: `src/lib/shop.ts`, `src/lib/shop.test.ts`.
 - **"You own N like this"** on a card (owned first): the app reads the garment type and colours from the product title
-  (keyword list, then the Channel3 category slug, then the searched category filter) and counts the user's
-  *confirmed* items with the same subcategory (or category) and a shared colour. A category alone never counts.
+  without the brand name (keyword list, then the Channel3 category slug, then the searched category filter) and counts
+  the user's *confirmed* items they still own (`status = owned`) with the same subcategory (or category) and a shared
+  colour. The title must name a colour; a type or category alone never counts. Cards keep their place in the ranking.
   Runs in the app on data it already has: no AI call, no Channel3 credit. Replaced by the matching engine in M3.
   Logic and tests: `src/lib/ownedSimilar.ts`.
 

@@ -122,14 +122,19 @@ export async function saveConfirmedTags(itemId: string, update: ConfirmedUpdate)
 }
 
 /**
- * Category, subcategory and colours of the signed-in user's confirmed items, for "You own N like this" in the Shop
- * (src/lib/ownedSimilar.ts). Unconfirmed AI suggestions are left out. RLS only returns your own rows.
+ * Category, subcategory and colours of the user's confirmed items that they still own, for "You own N like this" in
+ * the Shop (src/lib/ownedSimilar.ts). Unconfirmed AI suggestions and items for sale, sold or archived are left out.
+ * Filtered on owner_id as well as RLS, so a future marketplace read policy can't pull in other people's items.
+ * Capped at the newest 500 items.
  */
-export async function listMyConfirmedItemTags(): Promise<OwnedItemTags[]> {
+export async function listMyConfirmedItemTags(userId: string): Promise<OwnedItemTags[]> {
   const { data, error } = await supabase
     .from('clothing_items')
     .select('id, category, subcategory, colours')
+    .eq('owner_id', userId)
+    .eq('status', 'owned')
     .not('tags_confirmed_at', 'is', null)
+    .order('created_at', { ascending: false })
     .limit(500);
   if (error) throw error;
   return (data ?? []) as OwnedItemTags[];

@@ -33,6 +33,13 @@ describe('subcategoryFromText', () => {
     ['Merino wool sweater', 'knit'],
     ['Leather tote', 'bag'],
     ['Gold hoop earrings', 'jewellery'],
+    ['Chino pants', 'chinos'],
+    ['Jogger pants', 'joggers'],
+    ['Cardigan sweater', 'cardigan'],
+    ['Blazer jacket', 'blazer'],
+    ['Tee shirt', 't_shirt'],
+    ['Puffer jacket', 'jacket'],
+    ['Satin gown', 'dress'],
   ])('%s → %s', (title, expected) => {
     expect(subcategoryFromText(title)).toBe(expected);
   });
@@ -42,19 +49,32 @@ describe('subcategoryFromText', () => {
     expect(subcategoryFromText('Capsule collection')).toBeNull();
     expect(subcategoryFromText('Gift card')).toBeNull();
   });
+
+  it('gives nothing when the last garment word is outside the taxonomy', () => {
+    expect(subcategoryFromText('Tie-front top')).toBeNull();
+    expect(subcategoryFromText('Cap sleeve top')).toBeNull();
+    expect(subcategoryFromText('Polo crew socks')).toBeNull();
+  });
 });
 
 describe('coloursFromText', () => {
   it('maps synonyms to palette ids', () => {
     expect(coloursFromText('Gray wool coat')).toEqual(['grey']);
     expect(coloursFromText('Cream knit')).toEqual(['off_white']);
-    expect(coloursFromText('Khaki chinos')).toEqual(['olive']);
+    expect(coloursFromText('Wine red knit')).toEqual(['burgundy']);
   });
 
   it('reads multi-word colours once', () => {
     expect(coloursFromText('Navy blue blazer')).toEqual(['navy']);
     expect(coloursFromText('Light blue shirt')).toEqual(['light_blue']);
     expect(coloursFromText('Off-white sneakers')).toEqual(['off_white']);
+    expect(coloursFromText('Mint green dress')).toEqual(['mint']);
+    expect(coloursFromText('Charcoal grey coat')).toEqual(['charcoal']);
+    expect(coloursFromText('Olive green parka')).toEqual(['olive']);
+  });
+
+  it('does not read flower prints as a colour', () => {
+    expect(coloursFromText('Rose print blouse')).toEqual([]);
   });
 
   it('finds several colours and skips words that only contain one', () => {
@@ -91,6 +111,13 @@ describe('inferProductTags', () => {
     });
   });
 
+  it('ignores the brand name', () => {
+    expect(inferProductTags({ title: 'Stone Island Nylon jacket', brand: 'Stone Island', categorySlug: null }).colours).toEqual([]);
+    expect(inferProductTags({ title: 'Polo Ralph Lauren Oxford shirt', brand: 'Polo Ralph Lauren', categorySlug: null })).toMatchObject({
+      subcategory: 'shirt',
+    });
+  });
+
   it('knows nothing about a title without garment words', () => {
     expect(inferProductTags({ title: 'The Essential', categorySlug: null })).toEqual({
       category: null,
@@ -116,11 +143,13 @@ describe('ownedSimilar', () => {
     expect(ids(ownedSimilar(inferProductTags({ title: 'White tee', categorySlug: null }), wardrobe))).toEqual(['c']);
   });
 
-  it('matches every item of the subcategory when the title names no colour', () => {
-    expect(ids(ownedSimilar(inferProductTags({ title: 'Straight jeans', categorySlug: null }), wardrobe))).toEqual([
-      'a',
-      'b',
-    ]);
+  it('never claims a match when the title names no colour', () => {
+    expect(ownedSimilar(inferProductTags({ title: 'Straight jeans', categorySlug: null }), wardrobe)).toEqual([]);
+  });
+
+  it('treats white/off-white and grey/charcoal as the same colour', () => {
+    expect(ids(ownedSimilar(inferProductTags({ title: 'Cream tee', categorySlug: null }), wardrobe))).toEqual(['c']);
+    expect(ids(ownedSimilar(inferProductTags({ title: 'Charcoal knit', categorySlug: null }), wardrobe))).toEqual(['d']);
   });
 
   it('matches by category + colour when only the category filter is known', () => {
@@ -148,5 +177,6 @@ describe('ownedSimilarLabel', () => {
     expect(ownedSimilarLabel(0)).toBeNull();
     expect(ownedSimilarLabel(1)).toBe('You own 1 like this');
     expect(ownedSimilarLabel(3)).toBe('You own 3 like this');
+    expect(ownedSimilarLabel(12)).toBe('You own 9+ like this');
   });
 });

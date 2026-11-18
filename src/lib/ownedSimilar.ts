@@ -10,9 +10,12 @@
  */
 import { categoryOf, type Category, type Colour, type Subcategory } from './taxonomy';
 
-/** English words for each subcategory. Regex sources, matched whole-word and case-insensitive. */
+/**
+ * English words for each subcategory. Regex sources, matched whole-word and case-insensitive. Compounds like
+ * "chino pants" are listed so the garment, not the generic noun, wins the "last word" rule below.
+ */
 const SUBCATEGORY_WORDS: Record<Subcategory, string[]> = {
-  t_shirt: ['t-?shirts?', 'tees?'],
+  t_shirt: ['t-?shirts?', 'tee[- ]?shirts?', 'tees?'],
   shirt: ['shirts?'],
   blouse: ['blouses?'],
   polo: ['polos?', 'polo shirts?'],
@@ -20,30 +23,30 @@ const SUBCATEGORY_WORDS: Record<Subcategory, string[]> = {
   sweatshirt: ['sweatshirts?'],
   hoodie: ['hoodies?', 'hooded sweatshirts?'],
   tank_top: ['tank tops?', 'tanks?', 'camis?', 'camisoles?', 'vest tops?'],
-  cardigan: ['cardigans?'],
-  jeans: ['jeans'],
-  trousers: ['trousers', 'pants', 'slacks'],
-  chinos: ['chinos?'],
+  cardigan: ['cardigans?', 'cardigan sweaters?'],
+  jeans: ['jeans?'],
+  trousers: ['trousers?', 'pants?', 'slacks'],
+  chinos: ['chinos?', 'chinos? (?:pants|trousers)'],
   shorts: ['shorts'],
   skirt: ['skirts?'],
-  joggers: ['joggers', 'sweatpants', 'track ?pants'],
-  leggings: ['leggings'],
-  dress: ['dress', 'dresses'],
-  jumpsuit: ['jumpsuits?', 'playsuits?', 'dungarees', 'overalls'],
-  coat: ['coats?', 'overcoats?', 'trench ?coats?', 'trenches'],
-  jacket: ['jackets?', 'bombers?'],
-  blazer: ['blazers?', 'sport ?coats?', 'suit jackets?'],
-  parka: ['parkas?'],
+  joggers: ['joggers?', 'jogger (?:pants|trousers)', 'sweatpants', 'track ?pants'],
+  leggings: ['leggings?'],
+  dress: ['dress', 'dresses', 'gowns?'],
+  jumpsuit: ['jumpsuits?', 'playsuits?', 'rompers?', 'dungarees', 'overalls'],
+  coat: ['coats?', 'overcoats?', 'trench ?coats?', 'trenches', 'peacoats?'],
+  jacket: ['jackets?', 'bombers?', 'puffers?', 'puffer jackets?', 'windbreakers?', 'anoraks?'],
+  blazer: ['blazers?', 'blazer jackets?', 'sport ?coats?', 'suit jackets?'],
+  parka: ['parkas?', 'parka (?:jackets?|coats?)'],
   gilet: ['gilets?', 'body ?warmers?', 'puffer vests?'],
   raincoat: ['raincoats?', 'rain ?jackets?', 'rain coats?'],
   overshirt: ['overshirts?', 'shackets?', 'shirt jackets?'],
   sneakers: ['sneakers?', 'trainers?'],
-  boots: ['boots?'],
+  boots: ['boots?', 'booties'],
   loafers: ['loafers?'],
   derbies: ['derbys?', 'derbies', 'oxfords?', 'brogues?'],
   heels: ['heels', 'pumps', 'stilettos?'],
   flats: ['flats', 'ballet flats?', 'ballerinas?'],
-  sandals: ['sandals?'],
+  sandals: ['sandals?', 'slides', 'flip[- ]?flops'],
   bag: ['bags?', 'handbags?', 'totes?', 'backpacks?', 'clutch', 'clutches'],
   belt: ['belts?'],
   scarf: ['scarf', 'scarves'],
@@ -56,7 +59,13 @@ const SUBCATEGORY_WORDS: Record<Subcategory, string[]> = {
   gloves: ['gloves', 'mittens'],
 };
 
-/** English colour words. Multi-word names come first so "light blue" isn't also read as "blue". */
+/**
+ * Garment nouns outside our taxonomy (or too generic to place). They take part in the "last word" rule but give no
+ * subcategory, so "Tie-front top" and "Cap sleeve top" aren't read as a tie or a cap.
+ */
+const GENERIC_HEADS = ['tops?', 'shoes?', 'socks?', 'bodysuits?', 'sets?', 'swimsuits?', 'bikinis?', 'wallets?', 'mules?'];
+
+/** English colour words. The longest name wins where names overlap ("mint green" → mint, not green). */
 const COLOUR_WORDS: Record<Colour, string[]> = {
   off_white: ['off[- ]?white', 'cream', 'ecru', 'ivory'],
   light_blue: ['light blue', 'sky blue', 'pale blue', 'baby blue'],
@@ -66,92 +75,114 @@ const COLOUR_WORDS: Record<Colour, string[]> = {
   black: ['black'],
   white: ['white'],
   grey: ['grey', 'gray'],
-  charcoal: ['charcoal', 'anthracite'],
+  charcoal: ['charcoal', 'charcoal gr[ae]y', 'anthracite'],
   silver: ['silver'],
   gold: ['gold'],
   beige: ['beige', 'sand', 'stone', 'oatmeal'],
   camel: ['camel', 'tan'],
   brown: ['brown', 'chocolate', 'cognac'],
-  olive: ['olive', 'khaki'],
+  olive: ['olive', 'olive green', 'army green'],
   red: ['red'],
-  burgundy: ['burgundy', 'bordeaux', 'maroon', 'wine'],
-  pink: ['pink', 'rose'],
+  burgundy: ['burgundy', 'burgundy red', 'bordeaux', 'maroon', 'wine', 'wine red'],
+  pink: ['pink', 'rose pink', 'dusty rose'],
   orange: ['orange'],
   rust: ['rust', 'terracotta'],
   yellow: ['yellow'],
-  mustard: ['mustard'],
+  mustard: ['mustard', 'mustard yellow'],
   green: ['green'],
-  mint: ['mint'],
+  mint: ['mint', 'mint green'],
   teal: ['teal'],
   blue: ['blue', 'cobalt'],
   purple: ['purple'],
   lavender: ['lavender', 'lilac'],
 };
 
-type Rule<T> = { value: T; re: RegExp };
+/** Colours a stylist treats as the same when saying "you own one like this". */
+const SAME_COLOUR: Partial<Record<Colour, Colour[]>> = {
+  white: ['off_white'],
+  off_white: ['white'],
+  grey: ['charcoal'],
+  charcoal: ['grey'],
+};
 
-function rules<T extends string>(table: Record<T, string[]>): Rule<T>[] {
-  return (Object.entries(table) as [T, string[]][]).flatMap(([value, words]) =>
+type Rule<T> = { value: T; re: RegExp };
+type Match<T> = { value: T; start: number; end: number };
+
+function rules<T>(entries: [T, string[]][]): Rule<T>[] {
+  return entries.flatMap(([value, words]) =>
     words.map((w) => ({ value, re: new RegExp(`(?<![a-z])${w}(?![a-z])`, 'gi') })),
   );
 }
 
-const SUBCATEGORY_RULES = rules(SUBCATEGORY_WORDS);
-const COLOUR_RULES = rules(COLOUR_WORDS);
+function matches<T>(text: string, list: Rule<T>[]): Match<T>[] {
+  const out: Match<T>[] = [];
+  for (const { value, re } of list) {
+    for (const m of text.matchAll(re)) {
+      const start = m.index ?? 0;
+      out.push({ value, start, end: start + m[0].length });
+    }
+  }
+  return out;
+}
+
+const SUBCATEGORY_RULES = rules<Subcategory | null>([
+  ...(Object.entries(SUBCATEGORY_WORDS) as [Subcategory, string[]][]),
+  [null, GENERIC_HEADS],
+]);
+const COLOUR_RULES = rules(Object.entries(COLOUR_WORDS) as [Colour, string[]][]);
 
 /**
  * The garment type named in a product title. English puts the garment noun last ("shirt dress" is a dress,
  * "dress shirt" is a shirt, "denim jacket" is a jacket), so the match that ends last wins; on a tie, the longest
- * ("polo shirt" over "shirt"). null if no garment word is found.
+ * ("polo shirt" over "shirt"). null if no garment word is found or the last one is outside our taxonomy.
  */
 export function subcategoryFromText(text: string): Subcategory | null {
-  let best: { value: Subcategory; end: number; len: number } | null = null;
-  for (const { value, re } of SUBCATEGORY_RULES) {
-    for (const m of text.matchAll(re)) {
-      const end = (m.index ?? 0) + m[0].length;
-      if (!best || end > best.end || (end === best.end && m[0].length > best.len)) {
-        best = { value, end, len: m[0].length };
-      }
-    }
+  let best: Match<Subcategory | null> | null = null;
+  for (const m of matches(text, SUBCATEGORY_RULES)) {
+    if (!best || m.end > best.end || (m.end === best.end && m.end - m.start > best.end - best.start)) best = m;
   }
   return best?.value ?? null;
 }
 
-/** Colours named in a title, in our palette ids. Overlapping names count once ("navy blue" → navy, not blue). */
+/** Colours named in a title, in our palette ids. Overlapping names count once, longest first. */
 export function coloursFromText(text: string): Colour[] {
-  const taken: [number, number][] = [];
-  const found: Colour[] = [];
-  for (const { value, re } of COLOUR_RULES) {
-    for (const m of text.matchAll(re)) {
-      const start = m.index ?? 0;
-      const end = start + m[0].length;
-      if (taken.some(([s, e]) => start < e && end > s)) continue;
-      taken.push([start, end]);
-      if (!found.includes(value)) found.push(value);
-    }
+  const all = matches(text, COLOUR_RULES).sort((a, b) => b.end - b.start - (a.end - a.start) || a.start - b.start);
+  const taken: Match<Colour>[] = [];
+  for (const m of all) {
+    if (!taken.some((t) => m.start < t.end && m.end > t.start)) taken.push(m);
   }
+  const found: Colour[] = [];
+  for (const m of taken.sort((a, b) => a.start - b.start)) if (!found.includes(m.value)) found.push(m.value);
   return found;
+}
+
+/** The title without the brand name, so "Stone Island", "Off-White" or "Polo Ralph Lauren" aren't read as tags. */
+export function stripBrand(title: string, brand: string | null): string {
+  const b = brand?.trim();
+  if (!b) return title;
+  return title.split(new RegExp(b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')).join(' ');
 }
 
 export type ProductTags = { category: Category | null; subcategory: Subcategory | null; colours: Colour[] };
 
 /**
- * Our best reading of a Shop product's type and colour: the title first, then the Channel3 category slug. If the user
- * searched with a category filter and the title says something else, we trust the filter for the category and drop
- * the subcategory.
+ * Our best reading of a Shop product's type and colour: the title (without the brand) first, then the Channel3
+ * category slug. If the user searched with a category filter and the title says something else, we trust the filter
+ * for the category and drop the subcategory.
  */
 export function inferProductTags(
-  product: { title: string; categorySlug: string | null },
+  product: { title: string; brand?: string | null; categorySlug: string | null },
   searchedCategory: Category | null = null,
 ): ProductTags {
+  const title = stripBrand(product.title, product.brand ?? null);
   const slugText = product.categorySlug?.replace(/[/_>-]+/g, ' ') ?? '';
-  let subcategory = subcategoryFromText(product.title) ?? (slugText ? subcategoryFromText(slugText) : null);
+  let subcategory = subcategoryFromText(title) ?? (slugText ? subcategoryFromText(slugText) : null);
   let category = subcategory ? categoryOf(subcategory) : null;
   if (searchedCategory && category !== searchedCategory) {
     category = searchedCategory;
     subcategory = null;
   }
-  return { category, subcategory, colours: coloursFromText(product.title) };
+  return { category, subcategory, colours: coloursFromText(title) };
 }
 
 /** The tag columns of a wardrobe item that this rule needs. */
@@ -164,22 +195,22 @@ export type OwnedItemTags = {
 
 /**
  * The user's items that look like this product: same subcategory (or same category when the subcategory is unknown)
- * and, when the title names a colour, at least one shared colour. Needs a subcategory or a colour on top of the
- * category, so a vague product ("Tops") never claims you own something like it.
- * Pass only items whose tags the user confirmed.
+ * and at least one shared colour (white/off-white and grey/charcoal count as the same). The title must name a
+ * colour: "Floral midi dress" never claims you own one like it just because you own a dress.
+ * Pass only items the user still owns and whose tags they confirmed.
  */
 export function ownedSimilar(tags: ProductTags, items: readonly OwnedItemTags[]): OwnedItemTags[] {
-  if (!tags.category) return [];
-  if (!tags.subcategory && tags.colours.length === 0) return [];
+  if (!tags.category || tags.colours.length === 0) return [];
+  const wanted = new Set<string>(tags.colours.flatMap((c) => [c, ...(SAME_COLOUR[c] ?? [])]));
   return items.filter((item) => {
     if (item.category !== tags.category) return false;
     if (tags.subcategory && item.subcategory !== tags.subcategory) return false;
-    if (tags.colours.length > 0 && !(item.colours ?? []).some((c) => (tags.colours as string[]).includes(c))) return false;
-    return true;
+    return (item.colours ?? []).some((c) => wanted.has(c));
   });
 }
 
-/** Card copy, or null when there's nothing to say. */
+/** Card copy, or null when there's nothing to say. Large counts are capped so the line stays short. */
 export function ownedSimilarLabel(count: number): string | null {
-  return count > 0 ? `You own ${count} like this` : null;
+  if (count <= 0) return null;
+  return `You own ${count > 9 ? '9+' : count} like this`;
 }
