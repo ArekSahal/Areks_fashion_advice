@@ -24,8 +24,11 @@ const GENDER_OPTIONS = SHOP_GENDERS.map((g) => ({ value: g, label: SHOP_GENDER_L
 const SKELETON = ['a', 'b', 'c', 'd'];
 /** Required label on every shop link (docs/channel3.md → Ranking and labelling). */
 const COMMISSION_LABEL = 'Shop link · we may earn a commission';
-/** EU fallback cards (docs/channel3.md → M1.5): priced in EUR, delivery to Sweden not verified by Channel3. */
-const EU_LABEL = 'EU shop · price in €';
+/**
+ * EU fallback cards (docs/channel3.md → M1.5): priced in EUR, delivery to Sweden not verified by Channel3.
+ * Short enough for one line in the 2-column grid; the note above the grid and the a11y label carry the warning.
+ */
+const EU_LABEL = 'EU shop';
 const EU_NOTE = 'EU shops may not deliver to Sweden. Check delivery on the shop’s site before you buy.';
 const PRICE_OPTIONS = SHOP_MAX_PRICES.map((p) => ({ value: String(p) as `${ShopMaxPrice}`, label: `Under ${formatPrice(p, 'SEK')}` }));
 
@@ -38,7 +41,7 @@ function ProductCard({ product, onOpen }: { product: ShopProduct; onOpen: () => 
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}${eu ? ', EU shop' : ''}. Opens the shop`}
+      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}${eu ? ', EU shop, may not deliver to Sweden' : ''}. Opens the shop`}
       onPress={onOpen}
       style={{ gap: t.space.xs }}
     >
@@ -186,12 +189,17 @@ export function ShopView() {
       ) : results === null ? (
         <EmptyState
           title="Shop online stores"
-          body="Search clothes from shops that deliver to Sweden. Second-hand offers come first."
+          body="Search clothes from online shops. Swedish shops and second-hand offers come first."
         />
       ) : results.products.length === 0 ? (
         <EmptyState title="Nothing found" body="Try fewer words or remove a filter." />
       ) : (
         <>
+          {results.products.some((p) => p.region === 'EU') ? (
+            <Text variant="caption" muted>
+              {EU_NOTE}
+            </Text>
+          ) : null}
           <PhotoGrid
             items={results.products}
             columns={columns}
@@ -201,11 +209,6 @@ export function ShopView() {
           <Text variant="caption" muted>
             Prices and stock come from each shop and can change.
           </Text>
-          {results.products.some((p) => p.region === 'EU') ? (
-            <Text variant="caption" muted>
-              {EU_NOTE}
-            </Text>
-          ) : null}
         </>
       )}
     </View>

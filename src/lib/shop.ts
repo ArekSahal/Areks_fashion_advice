@@ -73,7 +73,7 @@ const CATEGORY_QUERY: Record<ShopCategory, string> = {
   accessory: 'accessory',
 };
 
-export type ShopInputErrorCode = 'empty_query' | 'query_too_long' | 'invalid_filter';
+export type ShopInputErrorCode = 'empty_query' | 'query_too_long' | 'invalid_filter' | 'invalid_region' | 'invalid_allow_eu';
 
 export class ShopInputError extends Error {
   readonly code: ShopInputErrorCode;
@@ -115,11 +115,22 @@ export function localeFor(region: ShopRegion) {
   return region === 'EU' ? SHOP_LOCALE_EU : SHOP_LOCALE;
 }
 
-/** Untrusted region from a request body: 'EU' or the default 'SE'. Anything else is an error. */
+/** Untrusted region from a request body: 'EU' or the default 'SE'. Anything else is an `invalid_region` error. */
 export function parseRegion(raw: unknown): ShopRegion {
   if (raw === undefined || raw === null || raw === 'SE') return 'SE';
   if (raw === 'EU') return 'EU';
-  throw new ShopInputError('invalid_filter');
+  throw new ShopInputError('invalid_region');
+}
+
+/**
+ * Untrusted `allow_eu` from a search request body. The EU fallback is opt-in: only a strict `true` turns it on
+ * (sent by the current app); absent = off, so older clients get exactly the Swedish-only behaviour.
+ * Not part of the search cache key: the Swedish cache entry is the same either way.
+ */
+export function parseAllowEu(raw: unknown): boolean {
+  if (raw === undefined) return false;
+  if (typeof raw !== 'boolean') throw new ShopInputError('invalid_allow_eu');
+  return raw;
 }
 
 /** The user's SEK price cap in the region's currency (rounded down for EUR, see SEK_PER_EUR). */
@@ -244,10 +255,13 @@ function parseOffer(raw: unknown): (ShopOffer & { inStock: boolean }) | null {
 /**
  * Best offer for the card: only in-stock offers; second-hand first, then the lowest price, then the highest
  * commission as the last tie-breaker (docs/channel3.md → Ranking). null = nothing buyable right now.
+ * With `currency`, offers in any other currency are dropped (EU cards must be priced in EUR, so "€" is never wrong).
  */
-export function pickBestOffer(rawOffers: unknown): ShopOffer | null {
+export function pickBestOffer(rawOffers: unknown, currency?: string): ShopOffer | null {
   if (!Array.isArray(rawOffers)) return null;
-  const offers = rawOffers.map(parseOffer).filter((o): o is NonNullable<typeof o> => o !== null && o.inStock);
+  const offers = rawOffers
+    .map(parseOffer)
+    .filter((o): o is NonNullable<typeof o> => o !== null && o.inStock && (!currency || o.currency === currency));
   offers.sort(
     (a, b) =>
       Number(b.condition === 'used') - Number(a.condition === 'used') ||
@@ -285,7 +299,7 @@ export function parseProduct(raw: unknown, region: ShopRegion = 'SE'): ShopProdu
     categorySlug: str(category?.slug)?.slice(0, 200) ?? null,
     gender: p.gender === 'male' || p.gender === 'female' ? p.gender : null,
     materials: Array.isArray(p.materials) ? p.materials.filter((m): m is string => typeof m === 'string').slice(0, 8) : [],
-    offer: pickBestOffer(p.offers),
+    offer: pickBestOffer(p.offers, region === 'EU' ? SHOP_LOCALE_EU.currency : undefined),
     ...(region === 'EU' ? { region } : {}),
   };
 }

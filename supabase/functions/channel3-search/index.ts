@@ -1,11 +1,12 @@
 // channel3-search: the M1.5 Shop (#34), see docs/channel3.md. Called only when the user taps Search or opens a card.
 //
-// POST { action: 'search', query, filters } → { products, cached }
+// POST { action: 'search', query, filters, allow_eu? } → { products, cached }
 //   Cache hit (same normalised query + filters in the last 24 h): no paid call. The cached id list is refreshed
 //   with the free product detail call, so prices, stock and buy links are always fresh.
 //   Cache miss: logs one credit in api_usage first (no paid call goes unlogged), then calls POST /v1/search once,
 //   asking for new and used offers together; second-hand is ranked first.
-//   EU fallback: if the Swedish search keeps fewer than EU_FALLBACK_MIN_SE_RESULTS cards, one more paid search runs
+//   EU fallback (opt-in: only with allow_eu: true; without it the function is Swedish-only, as before):
+//   if the Swedish search keeps fewer than EU_FALLBACK_MIN_SE_RESULTS cards, one more paid search runs
 //   with the pan-European locale (logged first as model 'v1/search:eu'; skipped if the log fails). Its id list is
 //   cached under its own EU key, so a cache hit refreshes each id in the locale it came from. EU cards come after
 //   the Swedish ones and carry region: 'EU'.
@@ -30,6 +31,7 @@ import {
   mergeRegions,
   needsEuFallback,
   normalizeSearchInput,
+  parseAllowEu,
   parseProduct,
   parseRegion,
   parseSearchResponse,
@@ -48,6 +50,8 @@ const API = 'https://api.trychannel3.com';
 const FEATURE = 'shop_search';
 /** Marginal cost per search past the 1,000 free credits/month (docs/channel3.md); the heartbeat sums credits. */
 const COST_PER_CREDIT_USD = 0.007;
+/** Search timeouts: the Swedish search may take its time; the EU fallback is extra wait on top, so it's cut short. */
+const SEARCH_TIMEOUT_MS = { SE: 15_000, EU: 7_000 } as const;
 
 type Admin = ReturnType<typeof createClient>;
 
@@ -165,7 +169,7 @@ async function paidSearch(
       method: 'POST',
       headers: channel3Headers(apiKey, userId),
       body: JSON.stringify(buildChannel3Search(input, region)),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS[region]),
     });
     if (!res.ok) throw new Error(`status ${res.status}: ${(await res.text()).slice(0, 300)}`);
     raw = await res.json();
@@ -178,6 +182,9 @@ async function paidSearch(
 
   const now = new Date();
   if (products.length > 0) {
+    // Keyed by product id only, so a product seen in both regions keeps the last region's price/currency. Those
+    // fields only feed the offline fallback card (fromExternalProductRow), which drops a row whose currency doesn't
+    // match the region's cap, so a mismatch errs on the safe side (card hidden, never a wrong price).
     const { error } = await admin
       .from('external_products')
       .upsert(products.map((p) => toExternalProductRow(p, now)), { onConflict: 'external_id' });
@@ -191,49 +198,59 @@ async function paidSearch(
 }
 
 async function search(admin: Admin, apiKey: string, userId: string, body: unknown): Promise<Response> {
+  const started = Date.now();
   let input;
+  let allowEu: boolean;
   try {
     input = normalizeSearchInput(body);
+    allowEu = parseAllowEu((body as { allow_eu?: unknown } | null)?.allow_eu);
   } catch (e) {
     if (e instanceof ShopInputError) return json({ error: e.code }, 400);
     throw e;
   }
+  const done = (products: ShopProduct[], cached: boolean, euFallback: boolean) => {
+    console.log(
+      JSON.stringify({
+        event: 'channel3-search.search',
+        cached,
+        results: products.length,
+        eu_fallback: euFallback,
+        duration_ms: Date.now() - started,
+      }),
+    );
+    return json({ products, cached });
+  };
 
   const seKey = await sha256Hex(searchCacheMaterial(input, 'SE'));
-  const euKey = await sha256Hex(searchCacheMaterial(input, 'EU'));
+  const euKey = allowEu ? await sha256Hex(searchCacheMaterial(input, 'EU')) : null;
   const seIds = await readCache(admin, seKey);
   if (seIds) {
     // The EU list only exists if this search was thin and the fallback ran; a hit never pays for a new fallback.
-    const euIds = needsEuFallback(seIds.length) ? await readCache(admin, euKey) : null;
+    const euIds = euKey && needsEuFallback(seIds.length) ? await readCache(admin, euKey) : null;
     const [se, eu] = await Promise.all([
       fromCache(admin, apiKey, userId, seIds, input.filters, 'SE'),
       euIds?.length ? fromCache(admin, apiKey, userId, euIds, input.filters, 'EU') : Promise.resolve([]),
     ]);
-    const products = mergeRegions(se, eu);
-    console.log(JSON.stringify({ event: 'channel3-search.search', cached: true, results: products.length, eu: eu.length }));
-    return json({ products, cached: true });
+    // Without EU cards the Swedish list is returned untouched (same as before the fallback existed).
+    return done(eu.length ? mergeRegions(se, eu) : se, true, euIds !== null);
   }
 
   const se = await paidSearch(admin, apiKey, userId, input, 'SE', seKey);
   if (se === 'not_logged') return json({ error: 'shop_unavailable' }, 503);
   if (se === 'failed') return json({ error: 'shop_unavailable' }, 502);
+  if (!euKey || !needsEuFallback(se.length)) return done(se, false, false);
 
   // EU fallback: one more credit, only when the Swedish results are thin. Its failure never hides the Swedish ones.
+  // Reuse a still-valid EU list (e.g. the Swedish cache write failed last time) before paying again.
   let eu: ShopProduct[] = [];
-  if (needsEuFallback(se.length)) {
-    // Reuse a still-valid EU list (e.g. the Swedish cache write failed last time) before paying again.
-    const euIds = await readCache(admin, euKey);
-    if (euIds) {
-      eu = euIds.length ? await fromCache(admin, apiKey, userId, euIds, input.filters, 'EU') : [];
-    } else {
-      const result = await paidSearch(admin, apiKey, userId, input, 'EU', euKey);
-      if (Array.isArray(result)) eu = result;
-    }
+  const euIds = await readCache(admin, euKey);
+  if (euIds) {
+    eu = euIds.length ? await fromCache(admin, apiKey, userId, euIds, input.filters, 'EU') : [];
+  } else {
+    const result = await paidSearch(admin, apiKey, userId, input, 'EU', euKey);
+    if (Array.isArray(result)) eu = result;
   }
-  const products = mergeRegions(se, eu);
-
-  console.log(JSON.stringify({ event: 'channel3-search.search', cached: false, results: products.length, eu: eu.length }));
-  return json({ products, cached: false });
+  return done(eu.length ? mergeRegions(se, eu) : se, false, true);
 }
 
 Deno.serve(async (req) => {
@@ -268,8 +285,9 @@ Deno.serve(async (req) => {
       let region: ShopRegion;
       try {
         region = parseRegion(body.region);
-      } catch {
-        return json({ error: 'invalid_region' }, 400);
+      } catch (e) {
+        if (e instanceof ShopInputError) return json({ error: e.code }, 400);
+        throw e;
       }
       const product = await fetchProduct(apiKey, userId, id, region);
       if (product === undefined) return json({ error: 'shop_unavailable' }, 502);

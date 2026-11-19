@@ -12,6 +12,7 @@ import {
   mergeRegions,
   needsEuFallback,
   normalizeSearchInput,
+  parseAllowEu,
   parseRegion,
   parseProduct,
   parseSearchResponse,
@@ -254,7 +255,30 @@ describe('EU fallback', () => {
     expect(parseRegion('SE')).toBe('SE');
     expect(parseRegion('EU')).toBe('EU');
     expect(() => parseRegion('DE')).toThrow(ShopInputError);
-    expect(() => parseRegion(1)).toThrow(ShopInputError);
+    expect(() => parseRegion(1)).toThrow('invalid_region');
+  });
+
+  it('is opt-in: allow_eu must be a strict boolean and defaults to off', () => {
+    expect(parseAllowEu(undefined)).toBe(false);
+    expect(parseAllowEu(false)).toBe(false);
+    expect(parseAllowEu(true)).toBe(true);
+    for (const bad of ['true', 1, null, {}]) expect(() => parseAllowEu(bad)).toThrow('invalid_allow_eu');
+  });
+
+  it('never lets allow_eu change the Swedish cache key', () => {
+    const plain = normalizeSearchInput({ query: 'coat', filters: {} });
+    const optIn = normalizeSearchInput({ query: 'coat', filters: {}, allow_eu: true });
+    expect(searchCacheMaterial(optIn)).toBe(searchCacheMaterial(plain));
+  });
+
+  it('keeps only EUR offers on EU cards, so the euro label is never wrong', () => {
+    const mixed = product('mix', [offer({ price: { price: 100, currency: 'SEK' } }), eurOffer(60)]);
+    expect(parseProduct(mixed, 'EU')?.offer).toMatchObject({ currency: 'EUR', price: 60 });
+    expect(parseProduct(product('sekonly', [offer()]), 'EU')?.offer).toBeNull();
+    expect(parseSearchResponse({ products: [product('sekonly', [offer()])] }, {}, 'EU')).toEqual([]);
+    // Swedish parsing is unchanged: no currency restriction.
+    expect(parseProduct(product('eur', [eurOffer(40)]))?.offer?.currency).toBe('EUR');
+    expect(pickBestOffer([offer(), eurOffer(10)], 'EUR')?.currency).toBe('EUR');
   });
 
   it('runs only when the Swedish search keeps fewer than the threshold', () => {
