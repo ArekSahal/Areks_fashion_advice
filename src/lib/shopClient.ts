@@ -22,11 +22,15 @@ export function freshOfferUrl(product: ShopProduct, fetchedAt: number, now: numb
   return product.offer && now - fetchedAt < OFFER_FRESH_MINUTES * 60_000 ? product.offer.url : null;
 }
 
-/** A fresh buy link through the free product call. null if the product is gone or has no offer. */
-export async function fetchOfferUrl(productId: string): Promise<string | null> {
-  const { data, error } = await supabase.functions.invoke<{ product: ShopProduct }>('channel3-search', {
-    body: { action: 'offer', product_id: productId },
-  });
+/**
+ * A fresh buy link through the free product call, in the card's region (EU cards are fetched in the EU locale).
+ * null if the product is gone or has no offer.
+ */
+export async function fetchOfferUrl(product: Pick<ShopProduct, 'id' | 'region'>): Promise<string | null> {
+  const body = product.region === 'EU'
+    ? { action: 'offer', product_id: product.id, region: 'EU' }
+    : { action: 'offer', product_id: product.id };
+  const { data, error } = await supabase.functions.invoke<{ product: ShopProduct }>('channel3-search', { body });
   if (error || !data?.product?.offer) return null;
   return data.product.offer.url;
 }

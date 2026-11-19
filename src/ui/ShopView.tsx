@@ -24,6 +24,9 @@ const GENDER_OPTIONS = SHOP_GENDERS.map((g) => ({ value: g, label: SHOP_GENDER_L
 const SKELETON = ['a', 'b', 'c', 'd'];
 /** Required label on every shop link (docs/channel3.md → Ranking and labelling). */
 const COMMISSION_LABEL = 'Shop link · we may earn a commission';
+/** EU fallback cards (docs/channel3.md → M1.5): priced in EUR, delivery to Sweden not verified by Channel3. */
+const EU_LABEL = 'EU shop · price in €';
+const EU_NOTE = 'EU shops may not deliver to Sweden. Check delivery on the shop’s site before you buy.';
 const PRICE_OPTIONS = SHOP_MAX_PRICES.map((p) => ({ value: String(p) as `${ShopMaxPrice}`, label: `Under ${formatPrice(p, 'SEK')}` }));
 
 /** One shop result: product photo, title, brand, price and whether the offer is second-hand. */
@@ -31,10 +34,11 @@ function ProductCard({ product, onOpen }: { product: ShopProduct; onOpen: () => 
   const t = useTheme();
   const offer = product.offer;
   const used = offer?.condition === 'used';
+  const eu = product.region === 'EU';
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}. Opens the shop`}
+      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}${eu ? ', EU shop' : ''}. Opens the shop`}
       onPress={onOpen}
       style={{ gap: t.space.xs }}
     >
@@ -76,6 +80,11 @@ function ProductCard({ product, onOpen }: { product: ShopProduct; onOpen: () => 
       <Text variant="caption" numberOfLines={1}>
         {offer ? `${formatPrice(offer.price, offer.currency)} · ${offer.domain}` : 'Tap to see price'}
       </Text>
+      {eu ? (
+        <Text variant="caption" muted numberOfLines={1}>
+          {EU_LABEL}
+        </Text>
+      ) : null}
       <Text variant="caption" muted numberOfLines={1}>
         {COMMISSION_LABEL}
       </Text>
@@ -129,7 +138,7 @@ export function ShopView() {
     const tab = !fresh && Platform.OS === 'web' ? window.open('', '_blank') : null;
     setOpening(true);
     try {
-      const url = fresh ?? (await fetchOfferUrl(product.id));
+      const url = fresh ?? (await fetchOfferUrl(product));
       if (!url) {
         tab?.close();
         setError('That item is no longer available.');
@@ -192,6 +201,11 @@ export function ShopView() {
           <Text variant="caption" muted>
             Prices and stock come from each shop and can change.
           </Text>
+          {results.products.some((p) => p.region === 'EU') ? (
+            <Text variant="caption" muted>
+              {EU_NOTE}
+            </Text>
+          ) : null}
         </>
       )}
     </View>

@@ -1,17 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EU_FALLBACK_MIN_SE_RESULTS,
+  SEK_PER_EUR,
   SHOP_RESULT_LIMIT,
   ShopInputError,
   buildChannel3Search,
   filterAndRank,
   formatPrice,
   fromExternalProductRow,
+  localeFor,
+  mergeRegions,
+  needsEuFallback,
   normalizeSearchInput,
+  parseRegion,
   parseProduct,
   parseSearchResponse,
+  passesFilters,
   pickBestOffer,
+  priceCapFor,
   searchCacheMaterial,
   toExternalProductRow,
+  type ShopProduct,
 } from './shop';
 
 const offer = (over: Record<string, unknown> = {}) => ({
@@ -223,5 +232,99 @@ describe('formatPrice', () => {
     expect(formatPrice(1299, 'SEK')).toBe('1,299 kr');
     expect(formatPrice(49.5, 'EUR')).toBe('€50');
     expect(formatPrice(12, 'CZK')).toBe('12 CZK');
+  });
+});
+
+describe('EU fallback', () => {
+  const eurOffer = (price: number, over: Record<string, unknown> = {}) =>
+    offer({ domain: 'shop.de', price: { price, currency: 'EUR' }, ...over });
+  const card = (id: string, over: Partial<ShopProduct> = {}): ShopProduct => ({
+    ...parseProduct(product(id, [offer()]))!,
+    ...over,
+  });
+
+  it('uses the documented pan-European locale for EU and Sweden by default', () => {
+    expect(localeFor('SE')).toEqual({ country: 'SE', currency: 'SEK', language: 'en' });
+    expect(localeFor('EU')).toEqual({ country: 'EU', currency: 'EUR', language: 'en' });
+  });
+
+  it('accepts only SE or EU as a region from the request body', () => {
+    expect(parseRegion(undefined)).toBe('SE');
+    expect(parseRegion(null)).toBe('SE');
+    expect(parseRegion('SE')).toBe('SE');
+    expect(parseRegion('EU')).toBe('EU');
+    expect(() => parseRegion('DE')).toThrow(ShopInputError);
+    expect(() => parseRegion(1)).toThrow(ShopInputError);
+  });
+
+  it('runs only when the Swedish search keeps fewer than the threshold', () => {
+    expect(EU_FALLBACK_MIN_SE_RESULTS).toBe(4);
+    expect(needsEuFallback(0)).toBe(true);
+    expect(needsEuFallback(EU_FALLBACK_MIN_SE_RESULTS - 1)).toBe(true);
+    expect(needsEuFallback(EU_FALLBACK_MIN_SE_RESULTS)).toBe(false);
+    expect(needsEuFallback(SHOP_RESULT_LIMIT)).toBe(false);
+  });
+
+  it('turns the SEK cap into a lower-or-equal EUR cap, rounded down', () => {
+    expect(priceCapFor(1000, 'SE')).toEqual({ currency: 'SEK', amount: 1000 });
+    expect(priceCapFor(500, 'EU')).toEqual({ currency: 'EUR', amount: 41 });
+    expect(priceCapFor(1000, 'EU')).toEqual({ currency: 'EUR', amount: 83 });
+    expect(priceCapFor(2000, 'EU')).toEqual({ currency: 'EUR', amount: 166 });
+    // Never above the SEK cap at the conservative rate.
+    for (const sek of [500, 1000, 2000]) expect(priceCapFor(sek, 'EU').amount * SEK_PER_EUR).toBeLessThanOrEqual(sek);
+  });
+
+  it('builds the EU request with the EU locale and the price cap in EUR', () => {
+    const input = normalizeSearchInput({ query: 'coat', filters: { maxPrice: 1000 } });
+    const body = buildChannel3Search(input, 'EU');
+    expect(body.config).toEqual({ country: 'EU', currency: 'EUR', language: 'en', mode: 'default' });
+    expect(body.filters).toMatchObject({ price: { max_price: 83 } });
+    expect(buildChannel3Search(input)).toEqual(buildChannel3Search(input, 'SE'));
+  });
+
+  it('keeps the Swedish cache key unchanged and gives EU its own key', () => {
+    const input = normalizeSearchInput({ query: 'coat', filters: {} });
+    expect(searchCacheMaterial(input)).toBe(searchCacheMaterial(input, 'SE'));
+    expect(searchCacheMaterial(input)).toBe(JSON.stringify(['v1', 'SE', 'SEK', 'en', SHOP_RESULT_LIMIT, 'coat', null, null, null, false]));
+    expect(searchCacheMaterial(input, 'EU')).not.toBe(searchCacheMaterial(input, 'SE'));
+    expect(searchCacheMaterial(input, 'EU')).toContain('"EUR"');
+  });
+
+  it('marks EU cards with region EU and leaves Swedish cards without a region', () => {
+    expect(parseProduct(product('se', [offer()]))).not.toHaveProperty('region');
+    expect(parseProduct(product('eu', [eurOffer(40)]), 'EU')?.region).toBe('EU');
+  });
+
+  it('applies the price cap in EUR to EU cards and still drops SEK-capped non-SEK Swedish cards', () => {
+    const raw = { products: [product('cheap', [eurOffer(40)]), product('pricey', [eurOffer(90)]), product('sek', [offer({ price: { price: 300, currency: 'SEK' } })])] };
+    expect(parseSearchResponse(raw, { maxPrice: 1000 }, 'EU').map((p) => p.id)).toEqual(['cheap']);
+    expect(parseSearchResponse(raw, { maxPrice: 1000 }, 'SE').map((p) => p.id)).toEqual(['sek']);
+    const eu = parseProduct(product('eu', [eurOffer(83)]), 'EU')!;
+    expect(passesFilters(eu, { maxPrice: 1000 })).toBe(true);
+    expect(passesFilters({ ...eu, region: undefined }, { maxPrice: 1000 })).toBe(false);
+  });
+
+  it('keeps second-hand first within the EU results', () => {
+    const raw = { products: [product('new', [eurOffer(40)]), product('used', [eurOffer(30, { condition: 'used' })])] };
+    expect(parseSearchResponse(raw, {}, 'EU').map((p) => p.id)).toEqual(['used', 'new']);
+  });
+
+  it('merges Swedish cards first, then EU cards, without duplicates, capped at the result limit', () => {
+    const se = [card('a'), card('b')];
+    const eu = [card('b', { region: 'EU' }), card('c', { region: 'EU' })];
+    const merged = mergeRegions(se, eu);
+    expect(merged.map((p) => p.id)).toEqual(['a', 'b', 'c']);
+    expect(merged[1].region).toBeUndefined();
+    const many = Array.from({ length: 20 }, (_, i) => card(`e${i}`, { region: 'EU' }));
+    expect(mergeRegions(se, many)).toHaveLength(SHOP_RESULT_LIMIT);
+    expect(mergeRegions([], [])).toEqual([]);
+  });
+
+  it('filters cached EU rows against the EUR cap and marks them EU', () => {
+    const row = toExternalProductRow(parseProduct(product('eu', [eurOffer(70)]), 'EU')!);
+    expect(fromExternalProductRow(row, { maxPrice: 1000 }, 'EU')).toMatchObject({ id: 'eu', region: 'EU', offer: null });
+    expect(fromExternalProductRow(row, { maxPrice: 500 }, 'EU')).toBeNull();
+    expect(fromExternalProductRow(row, { maxPrice: 1000 })).toBeNull();
+    expect(fromExternalProductRow(row)).not.toHaveProperty('region');
   });
 });
