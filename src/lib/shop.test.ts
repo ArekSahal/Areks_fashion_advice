@@ -338,7 +338,7 @@ describe('EU fallback', () => {
     const eu = [card('b', { region: 'EU' }), card('c', { region: 'EU' })];
     const merged = mergeRegions(se, eu);
     expect(merged.map((p) => p.id)).toEqual(['a', 'b', 'c']);
-    expect(merged[1].region).toBeUndefined();
+    expect(merged[1]?.region).toBeUndefined();
     const many = Array.from({ length: 20 }, (_, i) => card(`e${i}`, { region: 'EU' }));
     expect(mergeRegions(se, many)).toHaveLength(SHOP_RESULT_LIMIT);
     expect(mergeRegions([], [])).toEqual([]);
