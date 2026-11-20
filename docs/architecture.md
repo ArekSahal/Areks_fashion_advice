@@ -37,7 +37,7 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 |---|---|---|
 | `profiles` | id (= auth.users.id), display_name, locale, style_unlocked_at, consent_* flags | owner only; created by trigger on sign-up |
 | `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, tags_confirmed_at, source_photo_id, source_box jsonb (server-set), embedding vector, created_at | owner only; marketplace reads go through `listings`. **The tag columns hold unconfirmed AI suggestions until `tags_confirmed_at` is set** (the original suggestion stays in `tag_confidence.suggested`). Every consumer (recommend, outfits, style profile, listings, search) must filter `tags_confirmed_at is not null` or treat the tags as suggestions |
-| `wardrobe_photos` | id, owner_id, image_path, thumb_path, faces_blurred_at, taken_at, created_at | owner only. The original photo items were cut from (Wardrobe → Outfits, #36). Paths and `faces_blurred_at` are server-set. A photo is not a "worn" entry by itself (wear counts stay honest); a diary entry can point at one as its outfit photo |
+| `wardrobe_photos` | id, owner_id, image_path, thumb_path, faces_blurred_at, taken_at, detections jsonb, detected_at, created_at | owner only. The original photo items were cut from (Wardrobe → Outfits, #36). Paths, `faces_blurred_at` and `detections` are server-set. A photo is not a "worn" entry by itself (wear counts stay honest); a diary entry can point at one as its outfit photo |
 | `outfits` (built in M2, #56) | id, owner_id, worn_on date (user's local day, ≤ today + 1), photo_id → `wardrobe_photos` (nullable), occasion (nullable, taxonomy `OCCASIONS`), notes (≤ 500), created_at, updated_at | owner only. Outfit diary: **several entries per day allowed** (an outfit change is a second entry; indexed on `(owner_id, worn_on)`, not unique). The photo reuses `wardrobe_photos` (no separate outfit-photo table or bucket); deleting the photo only clears `photo_id`. Clients write `worn_on`, `photo_id`, `occasion`, `notes` |
 | `outfit_items` (built in M2, #56) | outfit_id, item_id, owner_id, created_at | owner only. Entry and item must have the same owner: composite foreign keys `(outfit_id, owner_id)` → `outfits` and `(item_id, owner_id)` → `clothing_items`, so it holds for every role and never reveals other users' ids. Deleting the entry or the item removes the link. No client update (delete + insert) |
 | `item_wear_stats` (view, M2) | item_id, owner_id, wear_count, last_worn_on | `security_invoker = true`, signed-in select only. One row per item of the caller (0 / null if never worn). `wear_count` = number of **distinct days** worn (two entries on one day count once). Derived from `outfits` + `outfit_items`, never stored. Lists every item regardless of `status` / `tags_confirmed_at`: consumers filter (see `docs/styling-engine.md` §4) |
@@ -113,8 +113,18 @@ item as "Needs tags" and never displays its unconfirmed tags as facts.
 `detect_garments`) and returns up to 8 garments, most prominent first (layered pieces such as a shirt under a knit stay separate; the two
 shoes of a pair are merged into one box): `box` in the `source_box` format
 (`{x, y, w, h}` fractions), `tags`, `confidence`, `needs_check`, `detection_confidence` and `uncertain` (leave unticked).
-It writes nothing; results aren't cached yet. Prompt, schema, parser and the box → pixel crop helper are in
-`src/lib/detection.ts`, which reuses the per-garment parser and schema from `src/lib/tagging.ts`.
+It stores the garments (same order as the reply) on `wardrobe_photos.detections` and writes no items. A repeat call
+answers from the stored result (`status: 'already_detected'`, no Vertex call) unless the app sends `force: true`, so
+garment indexes can't shift under a confirm screen that is still open. Prompt, schema, parser and the box → pixel crop helper are in `src/lib/detection.ts`, which reuses the
+per-garment parser and schema from `src/lib/tagging.ts`.
+
+**Save garments from a wardrobe photo (#36 slice 3, server side):** the app uploads the original photo through
+`process-image` with `target: 'wardrobe_photo'` (stored under `{user_id}/photos/{photo_id}/`, no background removal,
+same face-check rule) → `detect-garments` → the user ticks garments → for each, the app crops it on the device (box →
+pixels with `boxToCropRect`), blurs faces, and uploads it as a normal item with `source: { photo_id, garment_index }`.
+`process-image` looks the garment up in the caller's stored `detections` and sets `source_photo_id`, `source_box` and
+the suggested tags (`tag_confidence.source = 'detect_garments'`, still unconfirmed), so the box and tags never come
+from the request. The same garment can't be saved twice (409 `garment_already_saved`). Helpers: `src/lib/garmentSource.ts`. The item then goes through **Confirm tags** like any other.
 
 **Post outfit (M2, #56; data model built in slice 1):** pick items (and optionally a photo, uploaded through the usual
 `process-image` path as a `wardrobe_photos` row) → insert a new `outfits` row (`worn_on` = the device's local date; never

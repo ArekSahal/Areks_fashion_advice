@@ -28,7 +28,7 @@ describe('wardrobe_photos', () => {
     const grants = clientGrants('wardrobe_photos');
     expect(grants.length).toBeGreaterThan(0);
     for (const privileges of grants) {
-      expect(privileges).not.toMatch(/image_path|thumb_path|faces_blurred_at|owner_id|\ball\b/i);
+      expect(privileges).not.toMatch(/image_path|thumb_path|faces_blurred_at|owner_id|detections|detected_at|\ball\b/i);
       for (const priv of ['insert', 'update']) {
         expect(privileges, `table-wide ${priv}`).not.toMatch(new RegExp(`\\b${priv}\\b(?!\\s*\\()`, 'i'));
       }
