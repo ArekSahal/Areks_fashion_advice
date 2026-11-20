@@ -1,8 +1,9 @@
 // detect-garments (#36 slice 2): finds every garment in one wardrobe photo with Gemini on Vertex AI (EU), see
 // docs/ai-providers.md. POST { photo_id } with the user's JWT. Sends the cleaned photo only if faces were blurred or
 // the user turned on "Let AI see faces" (same rule as tag-item). Returns each garment with a box in the
-// clothing_items.source_box format plus suggested tags; it writes no items (the Add flow saves the garments the user
-// confirms, slice 3). Every Vertex call is logged in api_usage with feature `detect_garments`.
+// clothing_items.source_box format plus suggested tags, and stores them on wardrobe_photos.detections. It writes no
+// items: the Add flow uploads one crop per garment the user confirms, and process-image builds each item from the
+// stored garment by index (slice 3, src/lib/garmentSource.ts). Every Vertex call is logged in api_usage with feature `detect_garments`.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { DETECTION_SCHEMA_VERSION, buildDetectionRequest, parseDetectionResponse } from '../../../src/lib/detection.ts';
 import {
@@ -12,6 +13,7 @@ import {
   extractResponseText,
   parseUsage,
 } from '../../../src/lib/vertex.ts';
+import { garmentsForResponse, storedGarments, toStoredDetections } from '../../../src/lib/garmentSource.ts';
 import { IMAGE_LIMITS } from '../_shared/sanitize-image.ts';
 import { VertexError, callModel, loadVertexConfig, logAiUsage } from '../_shared/vertex.ts';
 
@@ -52,7 +54,7 @@ Deno.serve(async (req) => {
   // Read with the user's token: RLS guarantees the photo belongs to the caller.
   const { data: photo, error: photoError } = await userClient
     .from('wardrobe_photos')
-    .select('id, owner_id, image_path, faces_blurred_at')
+    .select('id, owner_id, image_path, faces_blurred_at, detections')
     .eq('id', photoId)
     .maybeSingle();
   if (photoError) {
@@ -75,6 +77,20 @@ Deno.serve(async (req) => {
         message: 'This photo has not been face-blurred yet. Turn on "Let AI see faces" in Profile or add items yourself.',
       }, 409);
     }
+  }
+
+  // Already detected: answer from the stored result unless the app asks for a fresh run ({ force: true }). Items are
+  // saved by garment index into the stored result, so silently re-running (model output isn't deterministic) could
+  // shift the indexes under a screen that still shows the old list. Also saves a Vertex call on retries.
+  const stored = body?.force === true ? null : storedGarments(photo.detections);
+  if (stored) {
+    return json({
+      status: 'already_detected',
+      photo_id: photoId,
+      schema_version: DETECTION_SCHEMA_VERSION,
+      garments: garmentsForResponse(stored),
+      warnings: [],
+    });
   }
 
   const admin = createClient(url, serviceKey);
@@ -137,20 +153,24 @@ Deno.serve(async (req) => {
     return json({ error: result.reason, message: result.message }, 422);
   }
 
+  // Keep the result server-side: process-image creates items from it by garment index (never from app-sent boxes).
+  // Only matches the caller's own photo; a failed write means the Add flow can't save items, so report it.
+  const { error: storeError } = await admin
+    .from('wardrobe_photos')
+    .update({ detections: toStoredDetections(result.garments, TAGGING_MODEL), detected_at: new Date().toISOString() })
+    .eq('id', photoId)
+    .eq('owner_id', userId);
+  if (storeError) {
+    console.error('detect-garments: storing detections failed', storeError.message);
+    return json({ error: 'detection_failed' }, 500);
+  }
+
   return json({
     status: 'detected',
     photo_id: photoId,
     schema_version: DETECTION_SCHEMA_VERSION,
     model: TAGGING_MODEL,
-    garments: result.garments.map((g) => ({
-      box: g.box,
-      detection_confidence: g.detectionConfidence,
-      uncertain: g.uncertain,
-      tags: g.tags,
-      confidence: g.confidence,
-      needs_check: g.needsCheck,
-      warnings: g.warnings,
-    })),
+    garments: garmentsForResponse(result.garments),
     warnings: result.warnings,
   });
 });
