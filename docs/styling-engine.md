@@ -71,6 +71,20 @@ Signals, from strongest to weakest:
 3. Explicit 👍 / 👎 on a suggestion (stored in `recommendation_feedback`).
 4. Suggestion shown and ignored (weak negative).
 
+**Reading the diary (`outfits`, `outfit_items`, view `item_wear_stats`; schema in `docs/architecture.md`):**
+- **Co-wear learning:** only entries with **2 or more** linked items say anything about what goes together. Skip
+  single-item entries (they still count as wears). Several entries on one day are separate outfits (an outfit change),
+  so pair items within an entry, never across a day.
+- **Wear stats:** `item_wear_stats` lists every item, including archived/sold ones and items whose tags aren't confirmed.
+  Join `clothing_items` and filter `status = 'owned'` and `tags_confirmed_at is not null` (or treat the tags as
+  suggestions) before using wear counts for "never worn", gaps or style analysis. `wear_count` counts distinct days.
+- **Hard delete loses history:** deleting an item removes its `outfit_items` rows (cascade), so its co-wear pairs and
+  wear count go with it. Learned weights already trained on them stay. Prefer `status = 'archived'` when a user just
+  wants an item out of sight; the delete flow should say that history is lost.
+- **Planned (not built yet):** a nullable link from a diary entry to the suggestion it came from (`outfits.source`
+  + `recommendation_id` → `recommendation_feedback`), so "suggestion accepted → later worn" (signal 2) can be measured
+  directly. Add it with M3 recommendations, as an additive migration.
+
 Start with per-user weight tuning of the rule terms (some people love clashing colour). Only train a compatibility model
 once we have ~2,000 worn-together pairs across users. Never let one user's taste change another user's weights
 except through the global model.
