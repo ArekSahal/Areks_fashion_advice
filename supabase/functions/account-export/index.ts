@@ -14,6 +14,8 @@ const USER_TABLES: Record<string, string> = {
   profiles: 'id',
   clothing_items: 'owner_id',
   wardrobe_photos: 'owner_id',
+  outfits: 'owner_id',
+  outfit_items: 'owner_id',
   api_usage: 'user_id',
 };
 

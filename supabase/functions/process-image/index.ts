@@ -8,7 +8,15 @@
 // Faces are blurred on the device before upload (web: MediaPipe; native: not yet). If the app reports that the
 // face step ran (face_check 'blurred' or 'none'), the row gets faces_blurred_at = now(), which lets tag-item send
 // the photo to the AI without face consent. Clients can't set that column themselves (column grants).
+//
+// #36 slice 3 adds two optional request fields:
+// - target: 'wardrobe_photo' stores the original outfit photo as a wardrobe_photos row under
+//   item-photos/{user_id}/photos/{photo_id}/ (no background removal) and returns { photo_id }, for detect-garments.
+// - source: { photo_id, garment_index } on an item upload (a crop of one detected garment) links the new item to its
+//   photo. The box and suggested tags come from wardrobe_photos.detections, stored by detect-garments, never from the
+//   request (src/lib/garmentSource.ts).
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { itemColumnsFromDetection, parseGarmentSource } from '../../../src/lib/garmentSource.ts';
 import { faceCheckLabel, facesBlurredAt } from '../_shared/face-check.ts';
 import { IMAGE_LIMITS, ImageFormatError, sanitizeImage, type ImageFormat } from '../_shared/sanitize-image.ts';
 import { logUsage, usageLast24h } from '../_shared/usage.ts';
@@ -138,12 +146,68 @@ Deno.serve(async (req) => {
   const uploadId = typeof body?.upload_id === 'string' ? body.upload_id : '';
   const format: ImageFormat | null = body?.format === 'webp' || body?.format === 'jpeg' ? body.format : null;
   if (!UUID.test(uploadId) || !format) return json({ error: 'bad_request' }, 400);
+  const target = body?.target === undefined || body?.target === 'item' ? 'item' : body?.target === 'wardrobe_photo' ? 'wardrobe_photo' : null;
+  if (!target) return json({ error: 'bad_request' }, 400);
+  const garmentSource = body?.source === undefined ? null : parseGarmentSource(body.source);
+  if (body?.source !== undefined && (!garmentSource || target !== 'item')) return json({ error: 'bad_request' }, 400);
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
   const source = quarantinePaths(userId, uploadId, format);
   const written: string[] = [];
 
   try {
+    // A garment crop needs the stored detection of the caller's own photo. Checked before any file is written.
+    let fromDetection: ReturnType<typeof itemColumnsFromDetection> = null;
+    if (garmentSource) {
+      const { data: photo, error: photoError } = await admin
+        .from('wardrobe_photos')
+        .select('id, detections')
+        .eq('id', garmentSource.photoId)
+        .eq('owner_id', userId)
+        .maybeSingle();
+      if (photoError) throw photoError;
+      if (!photo) throw new RequestError('photo_not_found', 404);
+      fromDetection = itemColumnsFromDetection(photo.detections, garmentSource.garmentIndex, photo.id);
+      if (!fromDetection) throw new RequestError('garment_not_found', 409);
+      // One item per detected garment: a retry or double tap must not save the same garment twice.
+      const { count, error: dupError } = await admin
+        .from('clothing_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_id', userId)
+        .eq('source_photo_id', photo.id)
+        .eq('source_box', JSON.stringify(fromDetection.source_box));
+      if (dupError) throw dupError;
+      if ((count ?? 0) > 0) throw new RequestError('garment_already_saved', 409);
+    }
+
+    if (target === 'wardrobe_photo') {
+      // The original outfit photo: kept as taken (no background removal), one row in wardrobe_photos.
+      const [clean, thumb] = await Promise.all([
+        download(admin, source.clean, LIMITS.clean),
+        download(admin, source.thumb, LIMITS.thumb),
+      ]);
+      const photoId = crypto.randomUUID();
+      const imagePath = `${userId}/photos/${photoId}/clean.${EXT[clean.format]}`;
+      const thumbPath = `${userId}/photos/${photoId}/thumb.${EXT[thumb.format]}`;
+      for (const [path, photo] of [[imagePath, clean], [thumbPath, thumb]] as const) {
+        const { error } = await admin.storage
+          .from(PHOTOS)
+          .upload(path, photo.bytes, { contentType: MIME[photo.format], upsert: false });
+        if (error) throw error;
+        written.push(path);
+      }
+      const { error: insertError } = await admin.from('wardrobe_photos').insert({
+        id: photoId,
+        owner_id: userId,
+        image_path: imagePath,
+        thumb_path: thumbPath,
+        faces_blurred_at: facesBlurredAt(body?.face_check),
+      });
+      if (insertError) throw insertError;
+      console.log(JSON.stringify({ event: 'process-image.face_check', photo_id: photoId, face_check: faceCheckLabel(body?.face_check) }));
+      return json({ photo_id: photoId });
+    }
+
     const [clean, thumb] = await Promise.all([
       download(admin, source.clean, LIMITS.clean).then((photo) => removeBackground(admin, userId, photo)),
       download(admin, source.thumb, LIMITS.thumb),
@@ -168,6 +232,7 @@ Deno.serve(async (req) => {
         image_path: imagePath,
         thumb_path: thumbPath,
         faces_blurred_at: facesBlurredAt(body?.face_check),
+        ...(fromDetection ?? {}),
       });
     if (insertError) throw insertError;
     // One line per upload, to see how often the device step runs and finds faces (never logs the raw value).
