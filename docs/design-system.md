@@ -96,6 +96,8 @@ Planned for M1 (build them once, here, then reuse): `Sheet` (bottom sheet), `Toa
 - **AI tags:** shown as editable chips. Low-confidence tags get a dotted border and "check this". Never auto-save without
   the user seeing the tags at least once.
 - **Shop links:** always labelled "Shop link · we may earn a commission".
+- **Owned hint:** on a Shop card, the caption "You own N like this" (N capped at 9+) sits between the price line and
+  the commission label, which stays last.
 
 ## References
 Owner-supplied mockups and screenshots live in [`design-references/`](design-references/README.md). They are inspiration,
