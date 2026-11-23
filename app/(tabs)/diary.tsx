@@ -181,9 +181,12 @@ export default function Diary() {
         if (fresh) {
           const itemIds = new Set(fresh.items.map((i) => i.id));
           const photoIds = new Set(fresh.photos.map((p) => p.id));
+          const stillThere = editing ? (fresh.entries.find((x) => x.id === editing.id) ?? null) : null;
           next = {
             ...next,
-            editing: editing ? (fresh.entries.find((x) => x.id === editing.id) ?? null) : null,
+            editing: stillThere,
+            // Entry deleted elsewhere: saving now posts a new one, so the screen reads as posting.
+            isNew: next.isNew || !stillThere,
             itemIds: draft.itemIds.filter((id) => itemIds.has(id)),
             photoId: draft.photoId && photoIds.has(draft.photoId) ? draft.photoId : null,
           };
