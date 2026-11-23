@@ -118,13 +118,16 @@ answers from the stored result (`status: 'already_detected'`, no Vertex call) un
 garment indexes can't shift under a confirm screen that is still open. Prompt, schema, parser and the box → pixel crop helper are in `src/lib/detection.ts`, which reuses the
 per-garment parser and schema from `src/lib/tagging.ts`.
 
-**Save garments from a wardrobe photo (#36 slice 3, server side):** the app uploads the original photo through
+**Save garments from a wardrobe photo (#36 slice 3):** Add → **Outfit photo**. The app prepares the photo as usual (faces blurred on the device, EXIF dropped), uploads it through
 `process-image` with `target: 'wardrobe_photo'` (stored under `{user_id}/photos/{photo_id}/`, no background removal,
-same face-check rule) → `detect-garments` → the user ticks garments → for each, the app crops it on the device (box →
-pixels with `boxToCropRect`), blurs faces, and uploads it as a normal item with `source: { photo_id, garment_index }`.
+same face-check rule) → `detect-garments` → the user ticks garments (unsure ones start unticked) → for each, the app crops it on the device from that
+prepared, already face-blurred copy (box → pixels with `boxToCropRect`; the crop keeps the photo's face check) and
+uploads it as a normal item with `source: { photo_id, garment_index }`, one at a time; failed ones can be retried.
 `process-image` looks the garment up in the caller's stored `detections` and sets `source_photo_id`, `source_box` and
 the suggested tags (`tag_confidence.source = 'detect_garments'`, still unconfirmed), so the box and tags never come
-from the request. The same garment can't be saved twice (409 `garment_already_saved`). Helpers: `src/lib/garmentSource.ts`. The item then goes through **Confirm tags** like any other.
+from the request. The same garment can't be saved twice (409 `garment_already_saved`). Helpers: `src/lib/garmentSource.ts` (server), `src/lib/garmentPicker.ts` (picker logic), screen
+`src/ui/OutfitPhotoFlow.tsx`. After saving, the app opens the photo screen (`/photo/[id]`), where each new item shows
+"Needs tags" and goes through **Confirm tags** like any other.
 
 **Post outfit (M2, #56; data model built in slice 1):** pick items (and optionally a photo, uploaded through the usual
 `process-image` path as a `wardrobe_photos` row) → insert a new `outfits` row (`worn_on` = the device's local date; never

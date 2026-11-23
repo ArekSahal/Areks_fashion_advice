@@ -47,10 +47,10 @@ export async function signedPhotoUrls(paths: string[]): Promise<Record<string, s
 }
 
 /**
- * Uploads a prepared photo to uploads-quarantine and asks process-image to turn it into a wardrobe item.
- * Returns the new item's id.
+ * Uploads a prepared photo (clean + thumbnail) to uploads-quarantine and returns the upload id that process-image
+ * takes. The server re-checks the bytes and builds every path from the caller's id.
  */
-export async function addItemFromPhoto(userId: string, photo: PreparedPhoto): Promise<string> {
+export async function uploadToQuarantine(userId: string, photo: PreparedPhoto): Promise<string> {
   const uploadId = newUploadId();
   const paths = quarantinePaths(userId, uploadId, photo.format);
   const contentType = PHOTO_MIME[photo.format];
@@ -63,7 +63,21 @@ export async function addItemFromPhoto(userId: string, photo: PreparedPhoto): Pr
     const { error } = await bucket.upload(path, body, { contentType, upsert: false });
     if (error) throw error;
   }
+  return uploadId;
+}
 
+/** The JSON body of an Edge Function error (FunctionsHttpError carries the Response), or null (e.g. network error). */
+export async function functionErrorBody(error: unknown): Promise<unknown> {
+  const context = (error as { context?: { json?: () => Promise<unknown> } } | null)?.context;
+  return typeof context?.json === 'function' ? await context.json().catch(() => null) : null;
+}
+
+/**
+ * Uploads a prepared photo to uploads-quarantine and asks process-image to turn it into a wardrobe item.
+ * Returns the new item's id.
+ */
+export async function addItemFromPhoto(userId: string, photo: PreparedPhoto): Promise<string> {
+  const uploadId = await uploadToQuarantine(userId, photo);
   const { data, error } = await supabase.functions.invoke<{ item_id: string }>('process-image', {
     body: { upload_id: uploadId, format: photo.format, face_check: photo.faceCheck },
   });
@@ -102,10 +116,8 @@ export async function requestTagSuggestion(itemId: string): Promise<TagRequest> 
   try {
     const { data, error } = await supabase.functions.invoke<unknown>('tag-item', { body: { item_id: itemId } });
     if (error) {
-      // FunctionsHttpError carries the Response; its JSON body has the error code (e.g. needs_face_consent).
-      const context = (error as { context?: { json?: () => Promise<unknown> } }).context;
-      const body = typeof context?.json === 'function' ? await context.json().catch(() => null) : null;
-      return { ok: false, kind: tagErrorKind(body) };
+      // Its JSON body has the error code (e.g. needs_face_consent).
+      return { ok: false, kind: tagErrorKind(await functionErrorBody(error)) };
     }
     const suggestion = suggestionFromResponse(data);
     return suggestion ? { ok: true, suggestion } : { ok: false, kind: 'unavailable' };

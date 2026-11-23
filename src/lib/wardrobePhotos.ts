@@ -1,3 +1,13 @@
+import {
+  detectErrorKind,
+  garmentsFromDetectResponse,
+  saveOutcomeFromError,
+  type DetectErrorKind,
+  type PickerGarment,
+  type SaveOutcome,
+} from './garmentPicker';
+import { functionErrorBody, uploadToQuarantine } from './items';
+import type { PreparedPhoto } from './photo';
 import { supabase } from './supabase';
 
 /** An original outfit photo in the wardrobe (#36): the photo garments were cut from. */
@@ -68,4 +78,61 @@ export async function fetchPhotoWithItems(photoId: string): Promise<{ photo: War
 export function itemCountLabel(n: number): string {
   if (n === 0) return 'No items yet';
   return n === 1 ? '1 item' : `${n} items`;
+}
+
+// ---------- Add flow: outfit photo → detected garments → items (#36 slice 3b) ----------
+
+/**
+ * Uploads a prepared (face-blurred, EXIF-free) outfit photo and stores it as a wardrobe photo through process-image
+ * (`target: 'wardrobe_photo'`). Returns the new photo's id.
+ */
+export async function addOutfitPhoto(userId: string, photo: PreparedPhoto): Promise<string> {
+  const uploadId = await uploadToQuarantine(userId, photo);
+  const { data, error } = await supabase.functions.invoke<{ photo_id: string }>('process-image', {
+    body: { upload_id: uploadId, format: photo.format, face_check: photo.faceCheck, target: 'wardrobe_photo' },
+  });
+  if (error) throw error;
+  if (!data?.photo_id) throw new Error('Empty response');
+  return data.photo_id;
+}
+
+export type DetectRequest = { ok: true; garments: PickerGarment[] } | { ok: false; kind: DetectErrorKind };
+
+/**
+ * Asks detect-garments for the garments in a wardrobe photo. A repeat call gets the stored result (same indexes),
+ * so retrying is safe. Never throws: failures come back as an error kind the screen can explain.
+ */
+export async function detectGarments(photoId: string): Promise<DetectRequest> {
+  try {
+    const { data, error } = await supabase.functions.invoke<unknown>('detect-garments', { body: { photo_id: photoId } });
+    if (error) return { ok: false, kind: detectErrorKind(await functionErrorBody(error)) };
+    const garments = garmentsFromDetectResponse(data, photoId);
+    return garments ? { ok: true, garments } : { ok: false, kind: 'no_garments' };
+  } catch {
+    return { ok: false, kind: 'unavailable' };
+  }
+}
+
+/**
+ * Saves one detected garment as a clothing item: uploads its crop and sends only `{ photo_id, garment_index }`.
+ * process-image takes the box and suggested tags from its own stored detection and links the item to the photo.
+ * A garment that was already saved (a retry after a lost reply) comes back as `already_saved`.
+ */
+export async function saveGarment(
+  userId: string,
+  photoId: string,
+  garmentIndex: number,
+  crop: PreparedPhoto,
+): Promise<SaveOutcome> {
+  const uploadId = await uploadToQuarantine(userId, crop);
+  const { data, error } = await supabase.functions.invoke<{ item_id: string }>('process-image', {
+    body: {
+      upload_id: uploadId,
+      format: crop.format,
+      face_check: crop.faceCheck,
+      source: { photo_id: photoId, garment_index: garmentIndex },
+    },
+  });
+  if (error) return saveOutcomeFromError(await functionErrorBody(error));
+  return data?.item_id ? 'saved' : 'failed';
 }

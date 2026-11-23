@@ -1,4 +1,5 @@
 import type { ImagePickerAsset } from 'expo-image-picker';
+import type { CropRect } from './detection';
 import { blurCells, faceCheckResult, padBox, type Box, type FaceCheck } from './faceBlur';
 import {
   CLEAN_MAX_SIDE,
@@ -18,7 +19,13 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
   );
 }
 
-function draw(source: CanvasImageSource, width: number, height: number, maxSide: number): HTMLCanvasElement {
+function draw(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+  maxSide: number,
+  crop?: CropRect,
+): HTMLCanvasElement {
   const size = fitWithin(width, height, maxSide);
   const canvas = document.createElement('canvas');
   canvas.width = size.width;
@@ -26,8 +33,22 @@ function draw(source: CanvasImageSource, width: number, height: number, maxSide:
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas not available');
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(source, 0, 0, size.width, size.height);
+  if (crop) ctx.drawImage(source, crop.originX, crop.originY, crop.width, crop.height, 0, 0, size.width, size.height);
+  else ctx.drawImage(source, 0, 0, size.width, size.height);
   return canvas;
+}
+
+/** Encodes in the photo's format (WebP, or JPEG where the browser can't encode WebP), plus a thumbnail. */
+async function encodeCanvas(canvas: HTMLCanvasElement, preferred: PhotoFormat) {
+  let format = preferred;
+  let clean = await toBlob(canvas, PHOTO_MIME[format], CLEAN_QUALITY);
+  if (clean.type !== PHOTO_MIME[format]) {
+    format = 'jpeg';
+    clean = await toBlob(canvas, PHOTO_MIME.jpeg, CLEAN_QUALITY);
+  }
+  const thumbCanvas = draw(canvas, canvas.width, canvas.height, THUMB_MAX_SIDE);
+  const thumb = await toBlob(thumbCanvas, PHOTO_MIME[format], THUMB_QUALITY);
+  return { format, clean, thumb };
 }
 
 /** Shrinks the region to a few pixels and stretches it back: a strong blur that works in every browser. */
@@ -95,13 +116,23 @@ export async function preparePhoto(asset: ImagePickerAsset): Promise<PreparedPho
     bitmap.close();
   }
   const faceCheck = await blurFaces(cleanCanvas);
-  let format: PhotoFormat = 'webp';
-  let clean = await toBlob(cleanCanvas, PHOTO_MIME.webp, CLEAN_QUALITY);
-  if (clean.type !== PHOTO_MIME.webp) {
-    format = 'jpeg';
-    clean = await toBlob(cleanCanvas, PHOTO_MIME.jpeg, CLEAN_QUALITY);
+  const { format, clean, thumb } = await encodeCanvas(cleanCanvas, 'webp');
+  return { format, faceCheck, clean, thumb, width: cleanCanvas.width, height: cleanCanvas.height };
+}
+
+/**
+ * Web: one garment cut from an already prepared photo (#36), as a new photo plus thumbnail. It is decoded from the
+ * prepared (face-blurred, EXIF-free) copy, so it inherits that photo's face check and never sees the original pixels.
+ */
+export async function cropPhoto(photo: PreparedPhoto, rect: CropRect): Promise<PreparedPhoto> {
+  const source = photo.clean instanceof Blob ? photo.clean : new Blob([photo.clean], { type: PHOTO_MIME[photo.format] });
+  const bitmap = await createImageBitmap(source);
+  let canvas: HTMLCanvasElement;
+  try {
+    canvas = draw(bitmap, rect.width, rect.height, CLEAN_MAX_SIDE, rect);
+  } finally {
+    bitmap.close();
   }
-  const thumbCanvas = draw(cleanCanvas, cleanCanvas.width, cleanCanvas.height, THUMB_MAX_SIDE);
-  const thumb = await toBlob(thumbCanvas, PHOTO_MIME[format], THUMB_QUALITY);
-  return { format, faceCheck, clean, thumb };
+  const { format, clean, thumb } = await encodeCanvas(canvas, photo.format);
+  return { format, faceCheck: photo.faceCheck, clean, thumb, width: canvas.width, height: canvas.height };
 }
