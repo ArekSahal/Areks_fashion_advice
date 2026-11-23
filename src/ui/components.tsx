@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +19,9 @@ import { useTheme } from './theme';
 
 /** Visible chip height; the touch target around it is `touchTarget` (48). */
 const CHIP_HEIGHT = 36;
+
+/** Check mark badge on a selected ItemCard. */
+const CHECK_SIZE = 24;
 
 type AppTextProps = TextProps & { variant?: TypeVariant; muted?: boolean; tone?: 'default' | 'danger' | 'success' };
 
@@ -485,10 +489,22 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
 
 /**
  * Garment photo in a 4:5 photo well (or a 3:4 well for `shape="outfit"`) with an optional one-line label.
- * `uri` null shows the empty well (loading).
+ * `uri` null shows the empty well (loading). `selected` (true/false) makes it a pick-many card: an accent ring and a
+ * check mark when selected; the caller wraps it in a pressable with the checkbox role.
  */
-export function ItemCard({ uri, label, shape = 'item' }: { uri: string | null; label?: string; shape?: 'item' | 'outfit' }) {
+export function ItemCard({
+  uri,
+  label,
+  shape = 'item',
+  selected,
+}: {
+  uri: string | null;
+  label?: string;
+  shape?: 'item' | 'outfit';
+  selected?: boolean;
+}) {
   const t = useTheme();
+  const selectable = selected !== undefined;
   return (
     <View style={{ flex: 1, gap: t.space.xs }}>
       <View
@@ -506,6 +522,36 @@ export function ItemCard({ uri, label, shape = 'item' }: { uri: string | null; l
             resizeMode="cover"
             accessibilityLabel={label ?? (shape === 'outfit' ? 'Outfit photo' : 'Wardrobe item')}
           />
+        ) : null}
+        {selectable ? (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                pointerEvents: 'none',
+                borderRadius: t.radius.md,
+                borderWidth: selected ? 3 : 0,
+                borderColor: t.colours.accent,
+                alignItems: 'flex-end',
+                padding: t.space.xs,
+              },
+            ]}
+          >
+            {selected ? (
+              <View
+                style={{
+                  width: CHECK_SIZE,
+                  height: CHECK_SIZE,
+                  borderRadius: CHECK_SIZE / 2,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: t.colours.accent,
+                }}
+              >
+                <Ionicons name="checkmark" size={CHECK_SIZE - 8} color={t.colours.onAccent} />
+              </View>
+            ) : null}
+          </View>
         ) : null}
       </View>
       {label ? (
