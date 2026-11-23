@@ -12,6 +12,8 @@ import {
   listEntriesSince,
   localDateString,
   MAX_OUTFIT_ITEMS,
+  partialOutfitId,
+  photoLabel,
   pieceLabel,
   RECENT_DAYS,
   saveLabel,
@@ -33,8 +35,11 @@ type Loaded = {
   urls: Record<string, string>;
 };
 
-/** The outfit being posted (editing null) or edited. */
-type Draft = { editing: DiaryEntry | null; itemIds: string[]; photoId: string | null };
+/**
+ * The outfit being posted (editing null) or edited. `isNew` stays true when a post was saved without its items and
+ * the retry links into that entry (PartialOutfitError), so the screen still reads as posting.
+ */
+type Draft = { editing: DiaryEntry | null; isNew: boolean; itemIds: string[]; photoId: string | null };
 
 const SKELETON = ['a', 'b', 'c', 'd'];
 
@@ -70,7 +75,7 @@ function EntryThumbs({ entry, data, columns }: { entry: DiaryEntry; data: Loaded
         />
       ) : null}
       <Text variant="caption" muted>
-        {count === 0 ? 'Photo only' : count === 1 ? '1 piece' : `${count} pieces`}
+        {count === 0 ? (photo ? 'Photo only' : 'No pieces logged') : count === 1 ? '1 piece' : `${count} pieces`}
       </Text>
     </View>
   );
@@ -129,7 +134,12 @@ export default function Diary() {
   function startDraft(editing: DiaryEntry | null) {
     setError(null);
     setNotice(null);
-    setDraft({ editing, itemIds: editing ? [...editing.item_ids] : [], photoId: editing?.photo_id ?? null });
+    setDraft({
+      editing,
+      isNew: !editing,
+      itemIds: editing ? [...editing.item_ids] : [],
+      photoId: editing?.photo_id ?? null,
+    });
   }
 
   function toggle(itemId: string) {
@@ -148,30 +158,38 @@ export default function Diary() {
     savingRef.current = true;
     setSaving(true);
     setError(null);
+    const today = localDateString();
     try {
       if (draft.editing) await updateOutfit(draft.editing, draft.itemIds, draft.photoId);
-      else await createOutfit(localDateString(), draft.itemIds, draft.photoId);
-      const wasEditing = !!draft.editing;
-      await load();
+      else await createOutfit(today, draft.itemIds, draft.photoId);
+      const fresh = await load();
       setDraft(null);
-      setNotice(wasEditing ? 'Outfit updated.' : 'Saved to today’s diary.');
+      if (fresh) setNotice(draft.isNew ? 'Saved to today’s diary.' : 'Outfit updated.');
+      else setData(null); // saved, but the reload failed: show the retry screen, not a stale "Nothing logged yet"
     } catch (e) {
       const kind = diaryErrorKind(e);
       setError(DIARY_ERROR_MESSAGE[kind]);
+      // The entry was saved without its items and couldn't be removed: the retry links into it instead of posting twice.
+      const savedId = partialOutfitId(e);
+      const editing: DiaryEntry | null = savedId
+        ? { id: savedId, worn_on: today, photo_id: draft.photoId, created_at: new Date().toISOString(), item_ids: [] }
+        : draft.editing;
+      let next: Draft = { ...draft, editing };
       if (kind === 'stale') {
-        // Drop pieces or a photo that no longer exist, so the retry can succeed.
+        // Drop pieces or a photo that no longer exist, and re-read the entry, so the retry can succeed.
         const fresh = await load();
         if (fresh) {
           const itemIds = new Set(fresh.items.map((i) => i.id));
           const photoIds = new Set(fresh.photos.map((p) => p.id));
-          const stillThere = fresh.entries.find((x) => x.id === draft.editing?.id) ?? null;
-          setDraft({
-            editing: draft.editing ? stillThere : null,
+          next = {
+            ...next,
+            editing: editing ? (fresh.entries.find((x) => x.id === editing.id) ?? null) : null,
             itemIds: draft.itemIds.filter((id) => itemIds.has(id)),
             photoId: draft.photoId && photoIds.has(draft.photoId) ? draft.photoId : null,
-          });
+          };
         }
       }
+      setDraft(next);
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -214,7 +232,7 @@ export default function Diary() {
     return (
       <Screen>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: t.space.md, paddingBottom: t.space.lg }}>
-          <Text variant="title">{draft.editing ? 'Edit outfit' : 'Today’s outfit'}</Text>
+          <Text variant="title">{draft.isNew ? 'Today’s outfit' : 'Edit outfit'}</Text>
           <Text muted>
             {data.items.length > 0 ? 'Tap the pieces you’re wearing.' : 'Your wardrobe has no pieces yet.'}
           </Text>
@@ -230,7 +248,8 @@ export default function Diary() {
                   <Pressable
                     accessibilityRole="checkbox"
                     accessibilityLabel={name}
-                    accessibilityState={{ checked: selected }}
+                    accessibilityState={{ checked: selected, disabled: saving }}
+                    disabled={saving}
                     onPress={() => toggle(item.id)}
                     style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
                   >
@@ -256,9 +275,10 @@ export default function Diary() {
                   const selected = draft.photoId === photo.id;
                   return (
                     <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel="Outfit photo"
-                      accessibilityState={{ checked: selected }}
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={photoLabel(data.photos.indexOf(photo), data.photos.length, photo.created_at)}
+                      accessibilityState={{ checked: selected, disabled: saving }}
+                      disabled={saving}
                       onPress={() => setDraft({ ...draft, photoId: selected ? null : photo.id })}
                       style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
                     >
@@ -281,7 +301,7 @@ export default function Diary() {
             </Text>
           ) : null}
           <Button
-            label={saveLabel(draft.itemIds.length, !!draft.editing)}
+            label={saveLabel(draft.itemIds.length, !draft.isNew)}
             onPress={save}
             disabled={!ready}
             loading={saving}

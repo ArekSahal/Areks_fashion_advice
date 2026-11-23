@@ -126,11 +126,14 @@ pixels with `boxToCropRect`), blurs faces, and uploads it as a normal item with 
 the suggested tags (`tag_confidence.source = 'detect_garments'`, still unconfirmed), so the box and tags never come
 from the request. The same garment can't be saved twice (409 `garment_already_saved`). Helpers: `src/lib/garmentSource.ts`. The item then goes through **Confirm tags** like any other.
 
-**Post outfit (M2, #56; data model built in slice 1):** pick items (and optionally a photo, uploaded through the usual
-`process-image` path as a `wardrobe_photos` row) → insert a new `outfits` row (`worn_on` = the device's local date; never
+**Post outfit (M2, #56; data model in slice 1, Diary tab in slice 2, `src/lib/diary.ts`):** pick items (and optionally a
+photo: slice 2 only picks an existing `wardrobe_photos` row; uploading a new one through `process-image` comes later) → insert a new `outfits` row (`worn_on` = the device's local date; never
 an upsert of the day: posting again the same day adds a second entry, e.g. an outfit change; editing goes through the
 entry's id). The app reads the new id back with supabase-js `.insert(…).select('id')` (clients can't set `id`) → insert `outfit_items` (the app sends only `outfit_id` + `item_id`;
-`owner_id` defaults to `auth.uid()` and the foreign keys reject someone else's item or photo) → wear count and
+`owner_id` defaults to `auth.uid()` and the foreign keys reject someone else's item or photo). If linking fails the app
+deletes the new entry again; if that delete fails too, the retry links into the saved entry instead of posting a second one.
+Editing is not atomic: photo update, then removed links deleted, then added links inserted with `on conflict do nothing`
+(insert grant only), so repeating a half-finished save is safe → wear count and
 "last worn" come from `item_wear_stats` (a day counts once), nothing to update. Items cut from a wardrobe photo are not "worn" until a
 diary entry links them.
 

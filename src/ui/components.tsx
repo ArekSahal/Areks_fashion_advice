@@ -537,20 +537,21 @@ export function ItemCard({
               },
             ]}
           >
-            {selected ? (
-              <View
-                style={{
-                  width: CHECK_SIZE,
-                  height: CHECK_SIZE,
-                  borderRadius: CHECK_SIZE / 2,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: t.colours.accent,
-                }}
-              >
-                <Ionicons name="checkmark" size={CHECK_SIZE - 8} color={t.colours.onAccent} />
-              </View>
-            ) : null}
+            {/* Unselected: an empty circle, so the card reads as tappable; selected: a filled check. */}
+            <View
+              style={{
+                width: CHECK_SIZE,
+                height: CHECK_SIZE,
+                borderRadius: CHECK_SIZE / 2,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: selected ? 0 : 2,
+                borderColor: t.colours.borderStrong,
+                backgroundColor: selected ? t.colours.accent : t.colours.surface,
+              }}
+            >
+              {selected ? <Ionicons name="checkmark" size={CHECK_SIZE - 8} color={t.colours.onAccent} /> : null}
+            </View>
           </View>
         ) : null}
       </View>

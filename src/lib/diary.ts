@@ -56,6 +56,16 @@ export function pieceLabel(item: {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/**
+ * Screen-reader name for a photo in the picker, distinct per photo: "Outfit photo 2 of 5, added Mon 23 Nov".
+ * `index` is zero-based; the date is the local day the photo was added.
+ */
+export function photoLabel(index: number, total: number, createdAt: string): string {
+  const added = new Date(createdAt);
+  const when = Number.isNaN(added.getTime()) ? '' : `, added ${shortDate(localDateString(added))}`;
+  return `Outfit photo ${index + 1} of ${total}${when}`;
+}
+
 /** Tap to add or remove an item. Order is kept (first picked first); adding past the cap does nothing. */
 export function toggleItem(selected: readonly string[], itemId: string, max = MAX_OUTFIT_ITEMS): string[] {
   if (selected.includes(itemId)) return selected.filter((id) => id !== itemId);
@@ -104,6 +114,7 @@ export type DiaryErrorKind = 'stale' | 'date' | 'auth' | 'network';
 export function diaryErrorKind(error: unknown): DiaryErrorKind {
   const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
   if (code === '23503') return 'stale'; // foreign key: the item or photo was deleted (or isn't yours)
+  if (code === '23505') return 'stale'; // duplicate link: an earlier attempt got further than we knew, reload
   if (code === '23514') return 'date'; // check: worn_on in the future (device clock far ahead)
   if (code === '42501' || code === 'PGRST301' || code === 'PGRST303') return 'auth'; // RLS / expired session
   return 'network';
@@ -169,8 +180,32 @@ export async function listEntriesSince(sinceDay: string): Promise<DiaryEntry[]> 
 }
 
 /**
+ * Thrown by createOutfit when the entry was saved but its items weren't linked and removing the entry again failed
+ * too. `outfitId` is the saved entry, so the retry can link into it instead of posting a duplicate. `code` is the
+ * link error's, so diaryErrorKind still explains the cause.
+ */
+export class PartialOutfitError extends Error {
+  readonly outfitId: string;
+  readonly code: unknown;
+  constructor(outfitId: string, cause: unknown) {
+    super('Outfit saved without its items');
+    this.name = 'PartialOutfitError';
+    this.outfitId = outfitId;
+    this.code = typeof cause === 'object' && cause !== null ? (cause as { code?: unknown }).code : undefined;
+  }
+}
+
+/** The saved entry's id if `error` is a PartialOutfitError (checked by shape, so it holds across bundlers), else null. */
+export function partialOutfitId(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const e = error as { name?: unknown; outfitId?: unknown };
+  return e.name === 'PartialOutfitError' && typeof e.outfitId === 'string' ? e.outfitId : null;
+}
+
+/**
  * Posts a new diary entry and links its items. If linking fails the half-made entry is removed again, so a retry
- * doesn't leave an empty entry behind. Returns the new entry's id.
+ * doesn't leave an empty entry behind; if that removal fails too, a PartialOutfitError carries the entry's id.
+ * Returns the new entry's id.
  */
 export async function createOutfit(wornOn: string, itemIds: readonly string[], photoId: string | null): Promise<string> {
   const { data, error } = await supabase.from('outfits').insert(outfitInsert(wornOn, photoId)).select('id').single();
@@ -181,14 +216,18 @@ export async function createOutfit(wornOn: string, itemIds: readonly string[], p
   if (rows.length > 0) {
     const links = await supabase.from('outfit_items').insert(rows);
     if (links.error) {
-      await supabase.from('outfits').delete().eq('id', id);
+      const rollback = await supabase.from('outfits').delete().eq('id', id);
+      if (rollback.error) throw new PartialOutfitError(id, links.error);
       throw links.error;
     }
   }
   return id;
 }
 
-/** Saves an edited entry: the photo, then removed and added item links. */
+/**
+ * Saves an edited entry in three steps (not atomic): the photo, then removed links, then added links. If the
+ * connection drops midway the entry is partly updated, and saving again finishes it (each step is safe to repeat).
+ */
 export async function updateOutfit(
   entry: Pick<DiaryEntry, 'id' | 'photo_id' | 'item_ids'>,
   itemIds: readonly string[],
@@ -206,7 +245,11 @@ export async function updateOutfit(
     if (error) throw error;
   }
   if (add.length > 0) {
-    const { error } = await supabase.from('outfit_items').insert(outfitItemRows(entry.id, add));
+    // ON CONFLICT DO NOTHING: if an earlier attempt already linked some of these (the reply got lost), saving again
+    // still succeeds. Needs only the insert grant and policy, not update.
+    const { error } = await supabase
+      .from('outfit_items')
+      .upsert(outfitItemRows(entry.id, add), { onConflict: 'outfit_id,item_id', ignoreDuplicates: true });
     if (error) throw error;
   }
 }

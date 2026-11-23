@@ -7,7 +7,7 @@ const answers: Record<string, Result[]> = {};
 
 function from(table: string) {
   const chain: Record<string, unknown> = {};
-  for (const method of ['select', 'insert', 'update', 'delete', 'eq', 'in', 'gte', 'order', 'limit', 'single']) {
+  for (const method of ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'in', 'gte', 'order', 'limit', 'single']) {
     chain[method] = (...args: unknown[]) => {
       calls.push({ table, method, args });
       return chain;
@@ -32,6 +32,9 @@ const {
   localDateString,
   outfitInsert,
   outfitItemRows,
+  PartialOutfitError,
+  partialOutfitId,
+  photoLabel,
   pieceLabel,
   saveLabel,
   shortDate,
@@ -102,6 +105,13 @@ describe('pieceLabel', () => {
   });
 });
 
+describe('photoLabel', () => {
+  it('gives every photo a distinct name with its local day', () => {
+    expect(photoLabel(1, 5, new Date(2026, 10, 23, 9).toISOString())).toBe('Outfit photo 2 of 5, added Mon 23 Nov');
+    expect(photoLabel(0, 1, 'not a date')).toBe('Outfit photo 1 of 1');
+  });
+});
+
 describe('payloads', () => {
   it('only writes the client-writable outfit columns', () => {
     expect(outfitInsert('2026-11-23', null)).toEqual({ worn_on: '2026-11-23', photo_id: null });
@@ -126,6 +136,7 @@ describe('diaryErrorKind', () => {
     expect(diaryErrorKind({ code: '23503' })).toBe('stale');
     expect(diaryErrorKind({ code: '23514' })).toBe('date');
     expect(diaryErrorKind({ code: '42501' })).toBe('auth');
+    expect(diaryErrorKind({ code: '23505' })).toBe('stale');
     expect(diaryErrorKind(new TypeError('Failed to fetch'))).toBe('network');
     expect(diaryErrorKind(null)).toBe('network');
   });
@@ -185,6 +196,17 @@ describe('createOutfit', () => {
     expect(calls).toContainEqual({ table: 'outfits', method: 'eq', args: ['id', 'new'] });
   });
 
+  it('hands back the saved entry id when linking and the rollback both fail', async () => {
+    const fkError = { code: '23503', message: 'fk' };
+    answers.outfits = [{ data: { id: 'new' }, error: null }, { data: null, error: { message: 'offline' } }];
+    answers.outfit_items = [{ data: null, error: fkError }];
+    const err = await createOutfit('2026-11-23', ['gone'], null).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PartialOutfitError);
+    expect(partialOutfitId(err)).toBe('new');
+    expect(partialOutfitId(fkError)).toBeNull();
+    expect(diaryErrorKind(err)).toBe('stale');
+  });
+
   it('throws the insert error without linking anything', async () => {
     const dateError = { code: '23514' };
     answers.outfits = [{ data: null, error: dateError }];
@@ -201,8 +223,22 @@ describe('updateOutfit', () => {
     ];
     await updateOutfit({ id: 'o', photo_id: null, item_ids: ['a', 'b'] }, ['b', 'c'], null);
     expect(calls.some((c) => c.table === 'outfits')).toBe(false);
+    expect(calls).toContainEqual({ table: 'outfit_items', method: 'eq', args: ['outfit_id', 'o'] });
     expect(calls).toContainEqual({ table: 'outfit_items', method: 'in', args: ['item_id', ['a']] });
-    expect(calls).toContainEqual({ table: 'outfit_items', method: 'insert', args: [[{ outfit_id: 'o', item_id: 'c' }]] });
+    expect(calls).toContainEqual({
+      table: 'outfit_items',
+      method: 'upsert',
+      args: [[{ outfit_id: 'o', item_id: 'c' }], { onConflict: 'outfit_id,item_id', ignoreDuplicates: true }],
+    });
+    expect(calls.some((c) => c.method === 'insert')).toBe(false);
+  });
+
+  it('can repeat a half-finished save: links that already exist are skipped, not an error', async () => {
+    // First attempt linked 'c' but the reply was lost, so the screen still thinks the entry has only 'a'.
+    answers.outfit_items = [{ data: null, error: null }];
+    await expect(updateOutfit({ id: 'o', photo_id: null, item_ids: ['a'] }, ['a', 'c'], null)).resolves.toBeUndefined();
+    const upsert = calls.find((c) => c.method === 'upsert');
+    expect(upsert?.args[1]).toEqual({ onConflict: 'outfit_id,item_id', ignoreDuplicates: true });
   });
 
   it('updates the photo and reports a vanished entry as stale', async () => {
