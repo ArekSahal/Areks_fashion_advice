@@ -1,12 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import { Image, Pressable, useWindowDimensions, View } from 'react-native';
 import { boxToCropRect } from '@/lib/detection';
 import {
+  CROP_PADDING,
   DETECT_ERROR_COPY,
   cropPreviewLayout,
   garmentA11yLabel,
   initialSelection,
+  outcomeCaption,
   pendingIndexes,
   saveGarmentsInOrder,
   saveLabel,
@@ -19,7 +21,7 @@ import {
 import { gridColumns, type PreparedPhoto } from '@/lib/photo';
 import { cropPhoto } from '@/lib/preparePhoto';
 import { updateProfile } from '@/lib/profile';
-import { addOutfitPhoto, detectGarments, saveGarment } from '@/lib/wardrobePhotos';
+import { addOutfitPhoto, deleteWardrobePhoto, detectGarments, saveGarment } from '@/lib/wardrobePhotos';
 import { Button, PhotoGrid, Text } from './components';
 import { useTheme } from './theme';
 
@@ -31,10 +33,25 @@ type Phase =
   | { kind: 'review' }
   | { kind: 'saving'; done: number; total: number };
 
-/** One detected garment, cut out of the outfit photo on screen (no extra image work) with a tick in the corner. */
+/** Tick state of a tile: picked or not, then how its save went. */
+type TileState = 'unticked' | 'ticked' | 'saved' | 'failed';
+
+function tileState(selected: boolean, outcome: SaveOutcome | undefined): TileState {
+  if (outcome === 'saved' || outcome === 'already_saved') return 'saved';
+  if (selected && outcome === 'failed') return 'failed';
+  return selected ? 'ticked' : 'unticked';
+}
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
+
+/**
+ * One detected garment, cut out of the outfit photo on screen (no extra image work) with a mark in the corner:
+ * an empty ring (unticked), an accent tick (ticked), a green double tick (saved) or a red alert (couldn't save).
+ */
 function GarmentTile({
   garment,
   selected,
+  outcome,
   disabled,
   previewUri,
   photoWidth,
@@ -43,6 +60,7 @@ function GarmentTile({
 }: {
   garment: PickerGarment;
   selected: boolean;
+  outcome: SaveOutcome | undefined;
   disabled: boolean;
   previewUri: string;
   photoWidth: number;
@@ -51,11 +69,22 @@ function GarmentTile({
 }) {
   const t = useTheme();
   const [tile, setTile] = useState<{ width: number; height: number } | null>(null);
-  const layout = tile ? cropPreviewLayout(garment.box, photoWidth, photoHeight, tile.width, tile.height) : null;
+  const layout = tile
+    ? cropPreviewLayout(garment.box, photoWidth, photoHeight, tile.width, tile.height, CROP_PADDING)
+    : null;
+  const state = tileState(selected, outcome);
+  const caption = outcomeCaption(outcome);
+  const marks: Record<TileState, { icon: IconName; fg: string; bg: string; border: string }> = {
+    unticked: { icon: 'ellipse-outline', fg: t.colours.borderStrong, bg: t.colours.surface, border: t.colours.border },
+    ticked: { icon: 'checkmark-circle', fg: t.colours.onAccent, bg: t.colours.accent, border: t.colours.accent },
+    saved: { icon: 'checkmark-done-circle', fg: t.colours.onAccent, bg: t.colours.success, border: t.colours.success },
+    failed: { icon: 'alert-circle', fg: t.colours.onAccent, bg: t.colours.danger, border: t.colours.danger },
+  };
+  const mark = marks[state];
   return (
     <Pressable
       accessibilityRole="checkbox"
-      accessibilityLabel={garmentA11yLabel(garment)}
+      accessibilityLabel={garmentA11yLabel(garment, outcome)}
       accessibilityState={{ checked: selected, disabled }}
       disabled={disabled}
       onPress={onToggle}
@@ -68,8 +97,8 @@ function GarmentTile({
           borderRadius: t.radius.md,
           overflow: 'hidden',
           backgroundColor: t.colours.surfaceSunken,
-          borderWidth: 2,
-          borderColor: selected ? t.colours.accent : t.colours.border,
+          borderWidth: t.space.xxs,
+          borderColor: mark.border,
         }}
       >
         {layout ? (
@@ -77,7 +106,8 @@ function GarmentTile({
             source={{ uri: previewUri }}
             resizeMode="stretch"
             accessibilityIgnoresInvertColors
-            style={{ position: 'absolute', ...layout }}
+            // Saved pieces are already in the wardrobe: dimmed so the ones still to do stand out.
+            style={{ position: 'absolute', ...layout, opacity: state === 'saved' ? 0.6 : 1 }}
           />
         ) : null}
         <View
@@ -86,20 +116,20 @@ function GarmentTile({
             top: t.space.sm,
             right: t.space.sm,
             borderRadius: t.radius.pill,
-            backgroundColor: selected ? t.colours.accent : t.colours.surface,
+            backgroundColor: mark.bg,
           }}
         >
-          <Ionicons
-            name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-            size={28}
-            color={selected ? t.colours.onAccent : t.colours.borderStrong}
-          />
+          <Ionicons name={mark.icon} size={t.space.xl} color={mark.fg} />
         </View>
       </View>
       <Text variant="label" numberOfLines={2}>
         {garment.label}
       </Text>
-      {garment.uncertain ? (
+      {caption ? (
+        <Text variant="caption" tone={caption.tone}>
+          {caption.text}
+        </Text>
+      ) : garment.uncertain ? (
         <Text variant="caption" muted>
           Not sure this is a separate piece
         </Text>
@@ -138,6 +168,7 @@ export function OutfitPhotoFlow({
   const [outcomes, setOutcomes] = useState<Record<number, SaveOutcome>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [consenting, setConsenting] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const active = useRef(true);
   const started = useRef(false);
 
@@ -206,6 +237,28 @@ export function OutfitPhotoFlow({
     }
   }
 
+  /**
+   * Cancel / "Add one item instead": if the photo was stored but nothing was saved from it, remove it so no empty
+   * outfit photo is left in the wardrobe. If removing fails, stay here and say so (the user can try again).
+   */
+  async function leave() {
+    const nothingSaved = !Object.values(outcomes).some((o) => o === 'saved' || o === 'already_saved');
+    if (!photoId || !nothingSaved) {
+      onCancel();
+      return;
+    }
+    setLeaving(true);
+    setMessage(null);
+    try {
+      await deleteWardrobePhoto(photoId);
+      if (active.current) onCancel();
+    } catch {
+      if (active.current) setMessage('We couldn’t remove the photo. Check your connection and try again.');
+    } finally {
+      if (active.current) setLeaving(false);
+    }
+  }
+
   async function save() {
     if (!photoId) return;
     const todo = pendingIndexes(selected, outcomes);
@@ -219,7 +272,7 @@ export function OutfitPhotoFlow({
       todo,
       async (index) => {
         const garment = byIndex.get(index);
-        const rect = garment ? boxToCropRect(garment.box, photo.width, photo.height) : null;
+        const rect = garment ? boxToCropRect(garment.box, photo.width, photo.height, CROP_PADDING) : null;
         if (!rect) return 'failed';
         return saveGarment(userId, photoId, index, await cropPhoto(photo, rect));
       },
@@ -292,22 +345,31 @@ export function OutfitPhotoFlow({
       <>
         {photoWell}
         <Text accessibilityLiveRegion="polite">{copy.message}</Text>
-        <Text muted>The photo is saved under Wardrobe → Outfits.</Text>
+        <Text muted>If you add one item instead, we’ll remove this outfit photo.</Text>
         {message ? (
           <Text tone="danger" accessibilityLiveRegion="polite">
             {message}
           </Text>
         ) : null}
-        {copy.canRetry && photoId ? <Button label="Try again" onPress={() => retryDetect(photoId)} /> : null}
+        {copy.canRetry && photoId ? (
+          <Button label="Try again" onPress={() => retryDetect(photoId)} disabled={leaving} />
+        ) : null}
         <Button
           label="Add one item instead"
           variant={copy.canRetry ? 'secondary' : 'primary'}
-          onPress={onCancel}
+          onPress={leave}
           disabled={consenting}
+          loading={leaving}
         />
         {/* Privacy first: adding pieces one by one stays the main action; sharing faces is the secondary choice. */}
         {phase.error === 'needs_face_consent' ? (
-          <Button label="Let AI see faces" variant="secondary" onPress={allowFaces} loading={consenting} />
+          <Button
+            label="Let AI see faces"
+            variant="secondary"
+            onPress={allowFaces}
+            loading={consenting}
+            disabled={leaving}
+          />
         ) : null}
       </>
     );
@@ -323,7 +385,7 @@ export function OutfitPhotoFlow({
       <Text variant="heading" accessibilityRole="header">
         {garments.length === 1 ? 'We found 1 piece' : `We found ${garments.length} pieces`}
       </Text>
-      <Text muted>Tick the ones you want to save. You’ll check their tags next.</Text>
+      <Text muted>Tick the ones you want to save. You can check their tags on the next screen.</Text>
       <PhotoGrid
         items={garments}
         columns={columns}
@@ -332,8 +394,10 @@ export function OutfitPhotoFlow({
           <GarmentTile
             garment={g}
             selected={selected.includes(g.index)}
+            // A failed piece the user unticked is just unticked again.
+            outcome={selected.includes(g.index) || isSaved(g.index) ? outcomes[g.index] : undefined}
             // A saved garment can't be unticked: it's already in the wardrobe.
-            disabled={saving || isSaved(g.index)}
+            disabled={saving || leaving || isSaved(g.index)}
             previewUri={previewUri}
             photoWidth={photo.width}
             photoHeight={photo.height}
@@ -349,16 +413,24 @@ export function OutfitPhotoFlow({
           {message}
         </Text>
       ) : null}
-      <Button
-        label={anySaved && !saving ? 'Try again' : saveLabel(selected.length)}
-        onPress={save}
-        disabled={leftToSave === 0}
-        loading={saving}
-      />
+      {anySaved && leftToSave === 0 ? null : (
+        <Button
+          label={anySaved && !saving ? 'Try again' : saveLabel(selected.length)}
+          onPress={save}
+          disabled={leftToSave === 0 || leaving}
+          loading={saving}
+        />
+      )}
       {anySaved && photoId ? (
-        <Button label="Done" variant="secondary" onPress={() => onDone(photoId)} disabled={saving} />
+        // Nothing left to save: Done is the main action.
+        <Button
+          label="Done"
+          variant={leftToSave === 0 ? 'primary' : 'secondary'}
+          onPress={() => onDone(photoId)}
+          disabled={saving}
+        />
       ) : (
-        <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={saving} />
+        <Button label="Cancel" variant="secondary" onPress={leave} disabled={saving} loading={leaving} />
       )}
     </>
   );

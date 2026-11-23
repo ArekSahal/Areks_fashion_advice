@@ -5,21 +5,48 @@ import type { PreparedPhoto } from './photo';
 // vi.mock is hoisted, but its factory only runs at the dynamic import below, after these are initialised.
 const uploads: string[] = [];
 const invoke = vi.fn();
+/** Calls made by deleteWardrobePhoto, in order, and the replies the stand-in gives. */
+const calls: string[] = [];
+const replies = {
+  row: { data: null as unknown, error: null as unknown },
+  remove: { error: null as unknown },
+  delete: { error: null as unknown },
+};
 vi.mock('./supabase', () => ({
   supabase: {
     storage: {
-      from: () => ({
+      from: (bucket: string) => ({
         upload: async (path: string) => {
           uploads.push(path);
           return { error: null };
         },
+        remove: async (paths: string[]) => {
+          calls.push(`remove ${bucket} ${paths.join(',')}`);
+          return replies.remove;
+        },
       }),
     },
+    from: (table: string) => ({
+      select: () => ({
+        eq: (_col: string, id: string) => ({
+          maybeSingle: async () => {
+            calls.push(`select ${table} ${id}`);
+            return replies.row;
+          },
+        }),
+      }),
+      delete: () => ({
+        eq: async (_col: string, id: string) => {
+          calls.push(`delete ${table} ${id}`);
+          return replies.delete;
+        },
+      }),
+    }),
     functions: { invoke: (...args: unknown[]) => invoke(...args) },
   },
 }));
 
-const { addOutfitPhoto, detectGarments, saveGarment } = await import('./wardrobePhotos');
+const { addOutfitPhoto, deleteWardrobePhoto, detectGarments, saveGarment } = await import('./wardrobePhotos');
 
 const USER = '11111111-2222-4333-8444-555555555555';
 const PHOTO = '0b7c7c1e-8a52-4a3e-9d0e-1f2a3b4c5d6e';
@@ -78,6 +105,14 @@ describe('detectGarments', () => {
     invoke.mockResolvedValue(httpError({ error: 'needs_face_consent' }));
     await expect(detectGarments(PHOTO)).resolves.toEqual({ ok: false, kind: 'needs_face_consent' });
     invoke.mockResolvedValue({ data: { status: 'detected', photo_id: PHOTO, garments: [] }, error: null });
+    // A "successful" reply without garments, or for another photo, is malformed: retryable, not "no clothes".
+    await expect(detectGarments(PHOTO)).resolves.toEqual({ ok: false, kind: 'unavailable' });
+    invoke.mockResolvedValue({
+      data: { status: 'detected', photo_id: 'other', garments: [{ box: { x: 0, y: 0, w: 0.5, h: 0.5 }, tags: {} }] },
+      error: null,
+    });
+    await expect(detectGarments(PHOTO)).resolves.toEqual({ ok: false, kind: 'unavailable' });
+    invoke.mockResolvedValue(httpError({ error: 'not_garment' }));
     await expect(detectGarments(PHOTO)).resolves.toEqual({ ok: false, kind: 'no_garments' });
     invoke.mockRejectedValue(new Error('offline'));
     await expect(detectGarments(PHOTO)).resolves.toEqual({ ok: false, kind: 'unavailable' });
@@ -100,5 +135,44 @@ describe('saveGarment', () => {
     await expect(saveGarment(USER, PHOTO, 0, prepared)).resolves.toBe('already_saved');
     invoke.mockResolvedValue(httpError({ error: 'garment_not_found' }));
     await expect(saveGarment(USER, PHOTO, 0, prepared)).resolves.toBe('failed');
+  });
+});
+
+describe('deleteWardrobePhoto', () => {
+  beforeEach(() => {
+    calls.length = 0;
+    replies.row = { data: null, error: null };
+    replies.remove = { error: null };
+    replies.delete = { error: null };
+  });
+
+  it('removes the photo files, then the row', async () => {
+    const clean = `${USER}/photos/${PHOTO}/clean.webp`;
+    const thumb = `${USER}/photos/${PHOTO}/thumb.webp`;
+    replies.row = { data: { id: PHOTO, image_path: clean, thumb_path: thumb }, error: null };
+    await deleteWardrobePhoto(PHOTO);
+    expect(calls).toEqual([
+      `select wardrobe_photos ${PHOTO}`,
+      `remove item-photos ${clean},${thumb}`,
+      `delete wardrobe_photos ${PHOTO}`,
+    ]);
+  });
+
+  it('does nothing when the photo is already gone (or not yours)', async () => {
+    await deleteWardrobePhoto(PHOTO);
+    expect(calls).toEqual([`select wardrobe_photos ${PHOTO}`]);
+  });
+
+  it('keeps the row when the files could not be removed, so a retry can find them', async () => {
+    replies.row = { data: { id: PHOTO, image_path: 'a', thumb_path: null }, error: null };
+    replies.remove = { error: new Error('offline') };
+    await expect(deleteWardrobePhoto(PHOTO)).rejects.toThrow('offline');
+    expect(calls).not.toContain(`delete wardrobe_photos ${PHOTO}`);
+  });
+
+  it('throws when the row delete fails', async () => {
+    replies.row = { data: { id: PHOTO, image_path: 'a', thumb_path: 'b' }, error: null };
+    replies.delete = { error: new Error('denied') };
+    await expect(deleteWardrobePhoto(PHOTO)).rejects.toThrow('denied');
   });
 });

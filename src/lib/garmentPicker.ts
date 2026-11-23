@@ -29,16 +29,21 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-/** "Navy shirt", "Shirt", "Clothing item": the main colour plus the subcategory (or category), from suggested tags. */
-export function garmentLabel(tags: unknown): string {
+/**
+ * "Navy shirt", "Shirt", "Clothing item": the main colour plus the subcategory (or category), from suggested tags.
+ * Fields the model flagged in `needs_check` aren't stated as facts: a flagged subcategory falls back to the category,
+ * flagged colours are left out.
+ */
+export function garmentLabel(tags: unknown, needsCheck: unknown = []): string {
   const r = isRecord(tags) ? tags : {};
+  const flagged = (field: string) => Array.isArray(needsCheck) && needsCheck.includes(field);
   const kind =
-    typeof r.subcategory === 'string' && isSubcategory(r.subcategory)
+    !flagged('subcategory') && typeof r.subcategory === 'string' && isSubcategory(r.subcategory)
       ? r.subcategory
       : typeof r.category === 'string' && isCategory(r.category)
         ? r.category
         : null;
-  const firstColour = Array.isArray(r.colours) ? r.colours[0] : undefined;
+  const firstColour = !flagged('colours') && Array.isArray(r.colours) ? r.colours[0] : undefined;
   const colour = typeof firstColour === 'string' && isColour(firstColour) ? firstColour : null;
   if (!kind) return colour ? `${tagLabel(colour)} item` : 'Clothing item';
   const noun = tagLabel(kind).toLowerCase().replace(/^t-shirt$/, 'T-shirt');
@@ -58,7 +63,7 @@ export function garmentsFromDetectResponse(body: unknown, photoId: string): Pick
   const out: PickerGarment[] = [];
   body.garments.slice(0, MAX_GARMENTS).forEach((g, index) => {
     if (!isRecord(g) || !isValidSourceBox(g.box)) return;
-    out.push({ index, box: g.box, label: garmentLabel(g.tags), uncertain: g.uncertain === true });
+    out.push({ index, box: g.box, label: garmentLabel(g.tags, g.needs_check), uncertain: g.uncertain === true });
   });
   return out.length > 0 ? out : null;
 }
@@ -80,9 +85,20 @@ export function saveLabel(count: number): string {
   return count === 1 ? 'Save 1 item' : `Save ${count} items`;
 }
 
-/** Accessibility label of one garment tile. */
-export function garmentA11yLabel(g: PickerGarment): string {
-  return g.uncertain ? `${g.label}, not sure this is a separate piece` : g.label;
+/** Caption under a tile after a save run: "Saved" / "Couldn't save", or null before saving. */
+export function outcomeCaption(outcome: SaveOutcome | undefined): { text: string; tone: 'success' | 'danger' } | null {
+  if (outcome === 'saved' || outcome === 'already_saved') return { text: 'Saved', tone: 'success' };
+  if (outcome === 'failed') return { text: 'Couldn’t save', tone: 'danger' };
+  return null;
+}
+
+/** Accessibility label of one garment tile, including how its save went. */
+export function garmentA11yLabel(g: PickerGarment, outcome?: SaveOutcome): string {
+  const parts = [g.label];
+  if (g.uncertain) parts.push('not sure this is a separate piece');
+  const caption = outcomeCaption(outcome);
+  if (caption) parts.push(caption.text.toLowerCase());
+  return parts.join(', ');
 }
 
 // ---------- Errors ----------
@@ -185,20 +201,36 @@ export function saveSummary(selected: readonly number[], outcomes: Readonly<Reco
 
 // ---------- Crop preview ----------
 
+/** Padding around each garment when it is cropped for saving (boxToCropRect) and in the preview tile. */
+export const CROP_PADDING = 0.05;
+
+/** The box widened by `pad` of its size on each side and clamped to the photo (fractions; as boxToCropRect). */
+export function padBox(box: SourceBox, pad: number): SourceBox {
+  const p = Number.isFinite(pad) && pad > 0 ? pad : 0;
+  const left = Math.max(0, box.x - box.w * p);
+  const top = Math.max(0, box.y - box.h * p);
+  const right = Math.min(1, box.x + box.w * (1 + p));
+  const bottom = Math.min(1, box.y + box.h * (1 + p));
+  return { x: left, y: top, w: right - left, h: bottom - top };
+}
+
 /**
  * Where to draw the whole photo inside a tile so that only the garment's box shows, fitted ("contain") and centred.
  * The tile clips (overflow hidden); `width`/`height` are the photo's drawn size and `left`/`top` its offset, in the
- * tile's units. Needs the photo's pixel size for the box's aspect ratio. Null for unusable input.
+ * tile's units. Needs the photo's pixel size for the box's aspect ratio. `padding` widens the box the same way
+ * boxToCropRect does (then clamps to the photo), so the preview shows what will be saved. Null for unusable input.
  */
 export function cropPreviewLayout(
-  box: SourceBox,
+  rawBox: SourceBox,
   photoWidth: number,
   photoHeight: number,
   tileWidth: number,
   tileHeight: number,
+  padding = 0,
 ): { width: number; height: number; left: number; top: number } | null {
-  if (!isValidSourceBox(box)) return null;
+  if (!isValidSourceBox(rawBox)) return null;
   if (![photoWidth, photoHeight, tileWidth, tileHeight].every((n) => Number.isFinite(n) && n > 0)) return null;
+  const box = padBox(rawBox, padding);
   const boxW = box.w * photoWidth;
   const boxH = box.h * photoHeight;
   const scale = Math.min(tileWidth / boxW, tileHeight / boxH);

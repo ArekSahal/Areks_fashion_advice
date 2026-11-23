@@ -107,7 +107,8 @@ export async function detectGarments(photoId: string): Promise<DetectRequest> {
     const { data, error } = await supabase.functions.invoke<unknown>('detect-garments', { body: { photo_id: photoId } });
     if (error) return { ok: false, kind: detectErrorKind(await functionErrorBody(error)) };
     const garments = garmentsFromDetectResponse(data, photoId);
-    return garments ? { ok: true, garments } : { ok: false, kind: 'no_garments' };
+    // A successful reply always has garments (none found is a 422 `not_garment`), so anything else is malformed.
+    return garments ? { ok: true, garments } : { ok: false, kind: 'unavailable' };
   } catch {
     return { ok: false, kind: 'unavailable' };
   }
@@ -135,4 +136,27 @@ export async function saveGarment(
   });
   if (error) return saveOutcomeFromError(await functionErrorBody(error));
   return data?.item_id ? 'saved' : 'failed';
+}
+
+/**
+ * Removes a wardrobe photo the user backed out of (Cancel before any item was saved), so no orphan outfit photo is
+ * left behind: first its files in item-photos, then the row. Owner-only through RLS and the storage delete policy.
+ * Items already cut from it keep existing (their source_photo_id is set to null by the foreign key).
+ */
+export async function deleteWardrobePhoto(photoId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('wardrobe_photos')
+    .select('id, image_path, thumb_path')
+    .eq('id', photoId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return;
+  const row = data as { image_path: string | null; thumb_path: string | null };
+  const paths = [row.image_path, row.thumb_path].filter((p): p is string => !!p);
+  if (paths.length > 0) {
+    const { error: removeError } = await supabase.storage.from('item-photos').remove(paths);
+    if (removeError) throw removeError;
+  }
+  const { error: deleteError } = await supabase.from('wardrobe_photos').delete().eq('id', photoId);
+  if (deleteError) throw deleteError;
 }

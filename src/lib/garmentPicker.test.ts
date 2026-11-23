@@ -13,6 +13,9 @@ import {
   saveOutcomeFromError,
   saveSummary,
   toggleSelection,
+  CROP_PADDING,
+  outcomeCaption,
+  padBox,
   type PickerGarment,
   type SaveOutcome,
 } from './garmentPicker';
@@ -37,6 +40,23 @@ describe('garmentLabel', () => {
     expect(garmentLabel({ category: null, subcategory: null, colours: ['grey'] })).toBe('Grey item');
     expect(garmentLabel({ subcategory: 'spacesuit', colours: ['ultraviolet'] })).toBe('Clothing item');
     expect(garmentLabel(null)).toBe('Clothing item');
+  });
+
+  it('falls back to the category when the subcategory needs checking', () => {
+    const tags = { category: 'top', subcategory: 'blouse', colours: ['white'] };
+    expect(garmentLabel(tags, ['subcategory'])).toBe('White top');
+    expect(garmentLabel({ category: 'footwear', subcategory: 'loafers', colours: [] }, ['subcategory'])).toBe('Footwear');
+  });
+
+  it('leaves out colours that need checking', () => {
+    expect(garmentLabel({ category: 'bottom', subcategory: 'chinos', colours: ['beige'] }, ['colours'])).toBe('Chinos');
+    expect(garmentLabel({ category: 'top', subcategory: 'knit', colours: ['grey'] }, ['colours', 'subcategory'])).toBe('Top');
+    // needs_check flows through from the reply.
+    const body = {
+      status: 'detected',
+      garments: [{ ...replyGarment({ category: 'one_piece', subcategory: 'dress', colours: ['red'] }), needs_check: ['colours'] }],
+    };
+    expect(garmentsFromDetectResponse(body, PHOTO)?.[0]?.label).toBe('Dress');
   });
 });
 
@@ -111,6 +131,17 @@ describe('selection', () => {
     expect(garmentA11yLabel(garments[0]!)).toBe('Navy coat');
     expect(garmentA11yLabel(garments[1]!)).toBe('White shirt, not sure this is a separate piece');
   });
+
+  it('says how each save went, on screen and to screen readers', () => {
+    expect(outcomeCaption(undefined)).toBeNull();
+    expect(outcomeCaption('saved')).toEqual({ text: 'Saved', tone: 'success' });
+    expect(outcomeCaption('already_saved')).toEqual({ text: 'Saved', tone: 'success' });
+    expect(outcomeCaption('failed')).toEqual({ text: 'Couldn’t save', tone: 'danger' });
+    expect(garmentA11yLabel(garments[0]!, 'saved')).toBe('Navy coat, saved');
+    expect(garmentA11yLabel(garments[1]!, 'failed')).toBe(
+      'White shirt, not sure this is a separate piece, couldn’t save',
+    );
+  });
 });
 
 describe('detectErrorKind', () => {
@@ -174,6 +205,27 @@ describe('saving', () => {
     );
     expect(calls).toEqual([2]);
     expect(saveSummary([0, 2, 5], second)).toBeNull();
+  });
+});
+
+describe('padBox', () => {
+  it('widens the box like the saved crop and clamps it to the photo', () => {
+    const b = padBox({ x: 0.2, y: 0.2, w: 0.4, h: 0.2 }, CROP_PADDING);
+    expect(b.x).toBeCloseTo(0.18);
+    expect(b.y).toBeCloseTo(0.19);
+    expect(b.w).toBeCloseTo(0.44);
+    expect(b.h).toBeCloseTo(0.22);
+    const edge = padBox({ x: 0, y: 0.5, w: 1, h: 0.5 }, CROP_PADDING);
+    expect(edge).toEqual({ x: 0, y: expect.closeTo(0.475), w: 1, h: expect.closeTo(0.525) });
+    expect(padBox({ x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, 0)).toEqual({ x: 0.1, y: 0.1, w: 0.5, h: 0.5 });
+  });
+
+  it('makes the preview show the padded crop', () => {
+    const plain = cropPreviewLayout({ x: 0.2, y: 0.2, w: 0.4, h: 0.4 }, 1000, 1000, 100, 100)!;
+    const padded = cropPreviewLayout({ x: 0.2, y: 0.2, w: 0.4, h: 0.4 }, 1000, 1000, 100, 100, CROP_PADDING)!;
+    // A wider crop is drawn smaller in the same tile.
+    expect(padded.width).toBeLessThan(plain.width);
+    expect(padded.width).toBeCloseTo(100 / 0.44);
   });
 });
 
