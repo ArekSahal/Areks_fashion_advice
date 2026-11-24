@@ -145,6 +145,11 @@ describe('reasons', () => {
     const yellow = item({ subcategory: 'blouse', colours: ['yellow'], formality: 4 });
     const teal = item({ subcategory: 'skirt', colours: ['teal'], formality: 2 });
     expect(explainPair(yellow, teal)).toBe('Pairing the yellow blouse with the teal skirt is a deliberate high-low contrast.');
+    const hoodie = item({ subcategory: 'hoodie', colours: ['grey'], formality: 1 });
+    const chinos = item({ subcategory: 'chinos', colours: ['beige'], formality: 3 });
+    expect(explainPair(hoodie, chinos)).toBe(
+      "The beige chinos warm up the grey hoodie, and it's a relaxed take that still looks put together.",
+    );
     const floral = item({ subcategory: 'dress', colours: ['pink'], formality: 2, pattern: 'floral' });
     const denim = item({ subcategory: 'jacket', colours: ['denim_blue'], formality: 2, pattern: 'solid' });
     expect(explainPair(floral, denim)).toBe(

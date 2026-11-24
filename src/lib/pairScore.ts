@@ -231,8 +231,9 @@ function formalityReason(a: MatchItem, b: MatchItem, score: number): Reason | nu
   else if (gap === 1) text = `they're close in how dressed-up they are`;
   else if (gap === 2) {
     const [smart, casual] = a.formality > b.formality ? [a, b] : [b, a];
-    text = `pairing ${itemName(smart)} with ${itemName(casual)} is a deliberate high-low contrast`;
-    short = smart.formality! >= 4 ? 'the mix of smart and casual is deliberate' : 'a relaxed take that still looks put together';
+    const dressy = smart.formality! >= 4;
+    text = `pairing ${itemName(smart)} with ${itemName(casual)} is ${dressy ? 'a deliberate high-low contrast' : 'a relaxed take that still looks put together'}`;
+    short = dressy ? 'the mix of smart and casual is deliberate' : "it's a relaxed take that still looks put together";
   }
   return text ? { term: 'formality', strength: PAIR_WEIGHTS.formality * score, text, short } : null;
 }
