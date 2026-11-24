@@ -819,7 +819,7 @@
   },
   {
    "wear": "womenswear",
-   "label": "bad",
+   "label": "ok",
    "seed": {
     "subcategory": "dress",
     "colours": [
@@ -844,7 +844,147 @@
      "cotton"
     ]
    },
-   "reason": "Floral and stripe fight."
+   "reason": "Stripe works as a neutral print; shared white ties them together."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "skirt",
+    "colours": [
+     "beige"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "silk"
+    ]
+   },
+   "candidate": {
+    "subcategory": "knit",
+    "colours": [
+     "grey"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Silk slip skirt with a wool knit: classic texture contrast."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "white",
+     "blue"
+    ],
+    "formality": 4,
+    "pattern": "stripe",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "blazer",
+    "colours": [
+     "navy",
+     "grey"
+    ],
+    "formality": 4,
+    "pattern": "check",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Stripe + check at different scales: classic tailoring mix."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "light_blue"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "tie",
+    "colours": [
+     "navy",
+     "white"
+    ],
+    "formality": 4,
+    "pattern": "polka_dot",
+    "materials": [
+     "silk"
+    ]
+   },
+   "reason": "Plain shirt, patterned tie."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "blazer",
+    "colours": [
+     "grey"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "blouse",
+    "colours": [
+     "white"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "silk"
+    ]
+   },
+   "reason": "Office staple: grey blazer, white silk blouse."
+  },
+  {
+   "wear": "womenswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "blouse",
+    "colours": [
+     "green",
+     "pink"
+    ],
+    "formality": 3,
+    "pattern": "floral",
+    "materials": [
+     "viscose"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "camel",
+     "black"
+    ],
+    "formality": 3,
+    "pattern": "animal",
+    "materials": [
+     "polyester"
+    ]
+   },
+   "reason": "Floral with leopard: two loud prints fight."
   }
  ]
 }

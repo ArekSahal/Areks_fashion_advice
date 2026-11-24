@@ -45,16 +45,19 @@ score = 0.35·colour + 0.25·formality + 0.15·pattern + 0.10·season + 0.15·sl
   high; same-tone pairs (two pastels, two jewel tones) score well; complementary is a deliberate statement; the
   in-between hues ("contrast") score lowest but are not forbidden.
 - **formality**: gap 0 → 1, gap 1 → 0.85, gap 2 → 0.5 (intentional contrast like blazer + jeans); 3+ is a hard rule (below).
-- **pattern**: one print + quiet pieces = 1; two loud prints = 0.3, **and** the whole score is multiplied by 0.8. Two
-  prints are the most common clash, and at 0.15 weight the term alone can't outweigh two neutral colours.
+- **pattern**: one print + quiet pieces = 1; two loud prints = 0.3. A real print clash also multiplies the whole score
+  by 0.8 (at 0.15 weight the term alone can't outweigh two neutral colours). Not a clash: a patterned accessory (ties
+  are nearly always patterned) or a stripe with a different print (stripe + check, Breton + floral; stripes act as a
+  neutral print). Stripe on stripe and two other prints are clashes.
 - **season**: hard filter when the user asks "for today" (weather), soft score otherwise.
 - **slot_bonus**: candidate fills a slot the seed needs (top needs bottom + shoes; dress needs shoes + outerwear).
 
 Hard rules (filter, don't score, `pairBlock`): two items in the same slot never pair (`canPair`: two trousers, two
 base-layer tops, two coats), but layering is fine (shirt + knit + coat; dress + cardigan); several accessories are fine.
 A formality gap of 3+ is dropped (hoodie + suit trousers, heels + joggers). A warmth gap ≥ 3 is dropped unless one piece
-is outerwear or a base layer, since those layer over or under anything (linen shirt + down parka, silk blouse + wool
-trousers); a cashmere jumper with linen shorts is still dropped. Items with status `sold` / `archived` are excluded.
+is routinely layered with heavier ones: outerwear, a base-layer top, a dress or jumpsuit, a skirt or an accessory (linen
+shirt + down parka, silk blouse + wool trousers, silk slip skirt + wool knit, wool scarf + silk dress); a cashmere jumper
+with linen shorts is still dropped. Items with status `sold` / `archived` are excluded.
 Missing tags never block a pair; that term scores 0.5 ("no opinion"). Unconfirmed tags are used but flagged.
 
 **Showing matches:** `rankMatches` keeps pairs scoring **≥ 0.75**, best first (top 10). The cut-off is tuned on the
@@ -63,7 +66,7 @@ evaluation set: every pair labelled bad scores below it and every good or ok pai
 **Explanation:** the top two contributing rules (colour, formality, pattern) become the sentence, e.g.
 _"The camel coat warms up the grey trousers, and both sit at the same business level."_ Earthy neutrals (camel, beige,
 brown, olive, gold) "warm up" cool ones; a neutral next to a colour "lets it take the lead"; clashes are never given
-as a reason.
+as a reason. A printed piece is named by its print ("the striped shirt"), and then the colour sentence is skipped.
 v1 uses templates per rule; the LLM layer rewrites them more naturally later (cheap model, cached per pair).
 
 ## 3. Embeddings (M3 v2)

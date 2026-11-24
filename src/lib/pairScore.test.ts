@@ -5,6 +5,7 @@ import {
   DEFAULT_MIN_SCORE,
   PAIR_WEIGHTS,
   explainPair,
+  isPrintClash,
   itemName,
   pairBlock,
   pairScore,
@@ -53,6 +54,18 @@ describe('pair score', () => {
     expect(pairScore(check, floral).score).toBeCloseTo(pairScore(check, plain).score * 0.8 - 0.15 * 0.7 * 0.8, 2);
   });
 
+  it('does not penalise stripe + another print or a patterned accessory', () => {
+    const stripe = item({ subcategory: 'shirt', pattern: 'stripe', formality: 4 });
+    const checkBlazer = item({ subcategory: 'blazer', pattern: 'check', formality: 4 });
+    const dotTie = item({ subcategory: 'tie', pattern: 'polka_dot', formality: 4 });
+    const floral = item({ subcategory: 'skirt', pattern: 'floral' });
+    const animal = item({ subcategory: 'blouse', pattern: 'animal' });
+    expect(isPrintClash(stripe, checkBlazer)).toBe(false);
+    expect(isPrintClash(stripe, dotTie)).toBe(false);
+    expect(isPrintClash(animal, floral)).toBe(true);
+    expect(isPrintClash(stripe, { ...stripe, id: 'x', subcategory: 'trousers' })).toBe(true); // stripe on stripe
+  });
+
   it('soft-scores a season mismatch', () => {
     const summer = item({ subcategory: 'shorts', seasons: ['summer'] });
     const winter = item({ subcategory: 'knit', seasons: ['winter'] });
@@ -85,6 +98,10 @@ describe('hard rules', () => {
   it('drops a warmth gap of 3+ unless one piece is outerwear or a base layer', () => {
     const silkBlouse = item({ subcategory: 'blouse', materials: ['silk'] });
     expect(pairBlock(silkBlouse, item({ subcategory: 'trousers', materials: ['wool'] }))).toBeNull();
+    const woolKnit = item({ subcategory: 'knit', materials: ['wool'] });
+    expect(pairBlock(woolKnit, item({ subcategory: 'skirt', materials: ['silk'] }))).toBeNull();
+    expect(pairBlock(item({ subcategory: 'dress', materials: ['viscose'] }), item({ subcategory: 'cardigan', materials: ['cashmere'] }))).toBeNull();
+    expect(pairBlock(item({ subcategory: 'scarf', materials: ['wool'] }), item({ subcategory: 'dress', materials: ['silk'] }))).toBeNull();
     const linenShorts = item({ subcategory: 'shorts', materials: ['linen'] });
     const cashmere = item({ subcategory: 'knit', materials: ['cashmere'] });
     expect(pairBlock(cashmere, linenShorts)).toBe('warmth');
@@ -130,10 +147,18 @@ describe('reasons', () => {
     expect(explainPair(yellow, teal)).toBe('Pairing the yellow blouse with the teal skirt is a deliberate high-low contrast.');
     const floral = item({ subcategory: 'dress', colours: ['pink'], formality: 2, pattern: 'floral' });
     const denim = item({ subcategory: 'jacket', colours: ['denim_blue'], formality: 2, pattern: 'solid' });
-    expect(explainPair(floral, denim)).toMatch(/^The blue denim jacket is a neutral/); // colour outranks pattern
+    expect(explainPair(floral, denim)).toBe(
+      'Both sit at the same casual level, and the blue denim jacket keeps it calm, so the floral dress can stand out.',
+    );
+    const stripe = item({ subcategory: 'shirt', colours: ['white'], pattern: 'stripe', formality: 4 });
+    const check = item({ subcategory: 'blazer', colours: ['navy'], pattern: 'check', formality: 4 });
+    expect(explainPair(stripe, check)).toBe(
+      'Both sit at the same business level, and the stripes act as a neutral print, so the striped shirt and the checked blazer mix well.',
+    );
     const printOnly = item({ subcategory: 'dress', pattern: 'floral' });
     const plainOnly = item({ subcategory: 'jacket', pattern: 'solid' });
-    expect(explainPair(printOnly, plainOnly)).toBe('The jacket keeps it calm, so the floral on the dress can stand out.');
+    expect(explainPair(printOnly, plainOnly)).toBe('The jacket keeps it calm, so the floral dress can stand out.');
+    expect(itemName(item({ subcategory: 'shirt', colours: ['white'], pattern: 'stripe' }))).toBe('the striped shirt');
     expect(itemName(denim)).toBe('the blue denim jacket');
   });
 
