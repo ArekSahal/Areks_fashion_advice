@@ -60,7 +60,7 @@ Roboto / system-ui on web): fast, native, scales with the user's text size. Don'
 Bottom tabs, max 5:
 1. **Wardrobe** (grid of items, filters)
 2. **Diary** (today's outfit + calendar)
-3. **Add** ("Choose from library" first, "Take photo" second; library never asks for camera access; target: item added in < 30 s)
+3. **Add** (One item | Outfit photo; "Choose from library" first, "Take photo" second; library never asks for camera access; target: item added in < 30 s)
 4. **Market** (two views: **Second-hand** from other users, M4, and **Shop** from online stores via Channel3,
    M1.5; see [`DECISIONS.md`](DECISIONS.md))
 5. **Profile** (style analysis, settings, privacy)

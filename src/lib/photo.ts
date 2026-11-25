@@ -24,6 +24,11 @@ export type PreparedPhoto = {
   faceCheck: FaceCheck;
   clean: Blob | ArrayBuffer;
   thumb: Blob | ArrayBuffer;
+  /** Pixel size of `clean` (detection boxes are fractions of it). */
+  width: number;
+  height: number;
+  /** Native only: local file of `clean`, so garments can be cropped from it (#36). */
+  uri?: string;
 };
 
 /** Scales width × height down (never up) so the longest side is at most maxSide. */

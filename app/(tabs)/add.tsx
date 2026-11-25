@@ -6,10 +6,17 @@ import { useAuth } from '@/lib/auth';
 import { addItemFromPhoto } from '@/lib/items';
 import type { PreparedPhoto } from '@/lib/photo';
 import { prefetchFaceDetector, preparePhoto } from '@/lib/preparePhoto';
-import { Button, Screen, Text, useTheme } from '@/ui';
+import { Button, Screen, SegmentedControl, Text, useTheme } from '@/ui';
+import { OutfitPhotoFlow } from '@/ui/OutfitPhotoFlow';
 
 type Step = 'idle' | 'preparing' | 'uploading';
 type Source = 'library' | 'camera' | 'retry';
+type Mode = 'item' | 'outfit';
+
+const MODE_OPTIONS = [
+  { value: 'item', label: 'One item' },
+  { value: 'outfit', label: 'Outfit photo' },
+] as const satisfies readonly { value: Mode; label: string }[];
 
 const STEP_LABEL: Record<Step, string> = {
   idle: '',
@@ -26,6 +33,8 @@ const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'],
 /**
  * Add-item flow (M1c): choose a photo (library first, camera second) → resize + re-encode → upload →
  * process-image → confirm tags (app/confirm-tags.tsx) → wardrobe.
+ * "Outfit photo" (#36): the same pick and prepare step (faces blurred on the device), then OutfitPhotoFlow finds the
+ * garments, the user ticks the ones to keep, and the app opens the photo screen with the new items.
  * Choosing from the library never asks for camera access (issue #20).
  */
 export default function Add() {
@@ -41,6 +50,10 @@ export default function Add() {
   const busyRef = useRef(false);
   const busy = step !== 'idle';
   const [slowPrepare, setSlowPrepare] = useState(false);
+  const [mode, setMode] = useState<Mode>('item');
+  // A prepared outfit photo whose garments are being picked. While open, coming back to the tab keeps it.
+  const [outfit, setOutfit] = useState<{ photo: PreparedPhoto; preview: string } | null>(null);
+  const outfitRef = useRef(false);
 
   // Web: start loading the on-device face detector now, so it's usually ready when a photo is picked.
   useEffect(() => {
@@ -57,7 +70,7 @@ export default function Add() {
   // Coming back to the tab starts fresh (no stale error from an earlier attempt).
   useFocusEffect(
     useCallback(() => {
-      if (busyRef.current) return;
+      if (busyRef.current || outfitRef.current) return;
       setMessage(null);
       setPending(null);
       setPreview(null);
@@ -110,7 +123,28 @@ export default function Add() {
       setMessage('We couldn’t read that photo. Try a different one.');
       return;
     }
+    if (mode === 'outfit') {
+      finish();
+      setPreview(null);
+      openOutfit({ photo, preview: asset.uri });
+      return;
+    }
     await upload(photo);
+  }
+
+  function openOutfit(next: { photo: PreparedPhoto; preview: string } | null) {
+    outfitRef.current = next !== null;
+    setOutfit(next);
+  }
+
+  function outfitDone(photoId: string) {
+    openOutfit(null);
+    router.push({ pathname: '/photo/[id]', params: { id: photoId } });
+  }
+
+  function outfitCancel() {
+    openOutfit(null);
+    setMode('item');
   }
 
   async function chooseFromLibrary() {
@@ -150,57 +184,83 @@ export default function Add() {
 
   return (
     <Screen scroll>
-      <Text variant="title">Add an item</Text>
-      <Text muted>One piece per photo works best, laid flat or on a hanger against a plain background.</Text>
-
-      {preview ? (
-        <View
-          style={{
-            alignSelf: 'center',
-            width: '70%',
-            maxWidth: 320,
-            aspectRatio: t.aspect.item,
-            borderRadius: t.radius.md,
-            overflow: 'hidden',
-            backgroundColor: t.colours.surfaceSunken,
-          }}
-        >
-          <Image
-            source={{ uri: preview }}
-            style={{ width: '100%', height: '100%' }}
-            resizeMode="cover"
-            accessibilityLabel="Selected photo"
+      <Text variant="title">{mode === 'outfit' ? 'Add an outfit photo' : 'Add an item'}</Text>
+      {outfit && userId ? (
+        <OutfitPhotoFlow
+          userId={userId}
+          photo={outfit.photo}
+          previewUri={outfit.preview}
+          onDone={outfitDone}
+          onCancel={outfitCancel}
+        />
+      ) : (
+        <>
+          <SegmentedControl
+            options={MODE_OPTIONS}
+            value={mode}
+            onChange={(next) => {
+              if (busy) return;
+              setMode(next);
+              setMessage(null);
+              setPending(null);
+              setPreview(null);
+            }}
           />
-        </View>
-      ) : null}
+          <Text muted>
+            {mode === 'outfit'
+              ? 'A photo of a whole outfit. We’ll find each piece and you choose which ones to save.'
+              : 'One piece per photo works best, laid flat or on a hanger against a plain background.'}
+          </Text>
+          {preview ? (
+            <View
+              style={{
+                alignSelf: 'center',
+                width: '70%',
+                maxWidth: 320,
+                aspectRatio: mode === 'outfit' ? t.aspect.outfit : t.aspect.item,
+                borderRadius: t.radius.md,
+                overflow: 'hidden',
+                backgroundColor: t.colours.surfaceSunken,
+              }}
+            >
+              <Image
+                source={{ uri: preview }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode={mode === 'outfit' ? 'contain' : 'cover'}
+                accessibilityLabel="Selected photo"
+              />
+            </View>
+          ) : null}
 
-      <Text muted accessibilityLiveRegion="polite">
-        {step === 'preparing' && slowPrepare ? SLOW_PREPARE_LABEL : STEP_LABEL[step]}
-      </Text>
+          <Text muted accessibilityLiveRegion="polite">
+            {step === 'preparing' && slowPrepare ? SLOW_PREPARE_LABEL : STEP_LABEL[step]}
+          </Text>
 
-      {message ? (
-        <Text tone="danger" accessibilityLiveRegion="polite">
-          {message}
-        </Text>
-      ) : null}
+          {message ? (
+            <Text tone="danger" accessibilityLiveRegion="polite">
+              {message}
+            </Text>
+          ) : null}
 
-      {pending ? (
-        <Button label="Try again" onPress={retry} disabled={busy} loading={busy && source === 'retry'} />
-      ) : null}
-      <Button
-        label="Choose from library"
-        variant={pending ? 'secondary' : 'primary'}
-        onPress={chooseFromLibrary}
-        disabled={busy}
-        loading={busy && source === 'library'}
-      />
-      <Button
-        label="Take photo"
-        variant="secondary"
-        onPress={takePhoto}
-        disabled={busy}
-        loading={busy && source === 'camera'}
-      />
+          {pending ? (
+            <Button label="Try again" onPress={retry} disabled={busy} loading={busy && source === 'retry'} />
+          ) : null}
+          <Button
+            label="Choose from library"
+            variant={pending ? 'secondary' : 'primary'}
+            onPress={chooseFromLibrary}
+            disabled={busy}
+            loading={busy && source === 'library'}
+          />
+          <Button
+            label="Take photo"
+            variant="secondary"
+            onPress={takePhoto}
+            disabled={busy}
+            loading={busy && source === 'camera'}
+          />
+        </>
+      )}
     </Screen>
   );
 }
