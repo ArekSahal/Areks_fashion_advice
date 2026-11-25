@@ -35,7 +35,7 @@ Tables are created milestone by milestone as migrations in `supabase/migrations/
 
 | Table | Key columns | Notes / RLS |
 |---|---|---|
-| `profiles` | id (= auth.users.id), display_name, locale, style_unlocked_at, consent_* flags | owner only; created by trigger on sign-up |
+| `profiles` | id (= auth.users.id), display_name, locale, style_unlocked_at, consent_* flags, is_test (seeded test account, server-set) | owner only; created by trigger on sign-up |
 | `clothing_items` | id, owner_id, image_path, thumb_path, category, subcategory, colours[], pattern, materials[], fit, formality, seasons[], occasions[], brand, size, status (owned/for_sale/sold/archived), tag_confidence jsonb, tags_confirmed_at, source_photo_id, source_box jsonb (server-set), embedding vector, created_at | owner only; marketplace reads go through `listings`. **The tag columns hold unconfirmed AI suggestions until `tags_confirmed_at` is set** (the original suggestion stays in `tag_confidence.suggested`). Every consumer (recommend, outfits, style profile, listings, search) must filter `tags_confirmed_at is not null` or treat the tags as suggestions |
 | `wardrobe_photos` | id, owner_id, image_path, thumb_path, faces_blurred_at, taken_at, detections jsonb, detected_at, created_at | owner only. The original photo items were cut from (Wardrobe → Outfits, #36). Paths, `faces_blurred_at` and `detections` are server-set. A photo is not a "worn" entry by itself (wear counts stay honest); a diary entry can point at one as its outfit photo |
 | `outfits` (built in M2, #56) | id, owner_id, worn_on date (user's local day, ≤ today + 1), photo_id → `wardrobe_photos` (nullable), occasion (nullable, taxonomy `OCCASIONS`), notes (≤ 500), created_at, updated_at | owner only. Outfit diary: **several entries per day allowed** (an outfit change is a second entry; indexed on `(owner_id, worn_on)`, not unique). The photo reuses `wardrobe_photos` (no separate outfit-photo table or bucket); deleting the photo only clears `photo_id`. Clients write `worn_on`, `photo_id`, `occasion`, `notes` |
@@ -160,6 +160,13 @@ rule score + embedding similarity → top 10 with reasons → log `shown` in `re
   `main` no longer uses the old shape), because an older preview or the live build may still be running.
 - Test data created from previews is real data: use test accounts, and clean up what you create.
 - Destructive SQL (drop, truncate, mass delete/update) needs an owner `/approve` first, same as other irreversible actions.
+
+**Test accounts (#35).** `cloey-test-{1,2,3}@example.com` (menswear, womenswear, mixed) are made by the
+"Seed test accounts" workflow (`scripts/seed/`). `pick` drafts a photo list from the Unsplash API; an owner removes any
+photo with a face and commits it as `scripts/seed/photos.json` with `reviewed_by` set; `seed` creates or empties the
+accounts and adds each photo through `process-image` and `tag-item`. Their profiles have `is_test = true`: exclude
+them from metrics, cost-per-user numbers and anything shown to other users. The script refuses any account without
+the flag and keeps the auth users on reset (deleting them would orphan their `api_usage` rows into real numbers).
 
 ## Security and privacy checklist (enforced in review)
 - RLS enabled on every table (CI checks migrations) and Supabase security advisors clean after each migration.
