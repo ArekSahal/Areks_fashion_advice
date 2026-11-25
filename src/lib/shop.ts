@@ -10,6 +10,8 @@
  *   instead of two calls (used, then new).
  * - The buy link (offer url) is never stored. toExternalProductRow() drops it.
  * - Commission is only a tie-breaker between otherwise equal offers.
+ * - EU fallback: when the Swedish search is thin, one more paid search runs with the pan-European locale
+ *   (`country: 'EU'`, EUR). EU cards carry `region: 'EU'`; Swedish cards have no region field (unchanged contract).
  */
 import type { Category } from './taxonomy.ts';
 
@@ -34,6 +36,26 @@ export type ShopSearchInput = { query: string; filters: ShopFilters };
 export const MAX_QUERY_LENGTH = 100;
 export const SHOP_RESULT_LIMIT = 12;
 export const SHOP_LOCALE = { country: 'SE', currency: 'SEK', language: 'en' } as const;
+/**
+ * Fallback locale. `EU` is a documented Channel3 country value ("Europe, pan-region; use with currency EUR",
+ * https://channel3.ai/docs/guides/localization). Channel3 exposes no shipping-destination data on offers, so we can't
+ * check that an EU shop delivers to Sweden: the UI labels these cards and asks the user to check delivery.
+ */
+export const SHOP_LOCALE_EU = { country: 'EU', currency: 'EUR', language: 'en' } as const;
+export const SHOP_REGIONS = ['SE', 'EU'] as const;
+export type ShopRegion = (typeof SHOP_REGIONS)[number];
+/**
+ * The EU fallback runs when the Swedish search keeps fewer than this many cards. 4 = one screen of the 2-column
+ * phone grid: below that the results look broken, at or above it the user has real choices. The fallback costs one
+ * extra credit, so it should only fire for genuinely thin searches, not to top up a decent one to 12.
+ */
+export const EU_FALLBACK_MIN_SE_RESULTS = 4;
+/**
+ * Fixed SEK per EUR for turning the SEK price cap into a EUR cap for the EU search. Deliberately higher than the
+ * real rate (about 11 in 2025-2026), so the EUR cap is a bit lower and an EU item never costs more than the SEK cap
+ * the user picked: 500 kr → €41, 1,000 kr → €83, 2,000 kr → €166. Revisit if the krona weakens past 12.
+ */
+export const SEK_PER_EUR = 12;
 /** How long a search result (ordered list of product ids) is reused. */
 export const SEARCH_CACHE_HOURS = 24;
 /** Offer links are short-lived affiliate links: after this the app asks for a fresh one before opening it. */
@@ -51,7 +73,7 @@ const CATEGORY_QUERY: Record<ShopCategory, string> = {
   accessory: 'accessory',
 };
 
-export type ShopInputErrorCode = 'empty_query' | 'query_too_long' | 'invalid_filter';
+export type ShopInputErrorCode = 'empty_query' | 'query_too_long' | 'invalid_filter' | 'invalid_region' | 'invalid_allow_eu';
 
 export class ShopInputError extends Error {
   readonly code: ShopInputErrorCode;
@@ -89,14 +111,68 @@ export function normalizeSearchInput(raw: unknown): Required<ShopSearchInput> & 
   return { query, filters };
 }
 
-/** Stable string for the search-result cache key (hashed by the caller). Includes the locale and result limit. */
-export function searchCacheMaterial(input: ShopSearchInput): string {
+export function localeFor(region: ShopRegion) {
+  return region === 'EU' ? SHOP_LOCALE_EU : SHOP_LOCALE;
+}
+
+/** Untrusted region from a request body: 'EU' or the default 'SE'. Anything else is an `invalid_region` error. */
+export function parseRegion(raw: unknown): ShopRegion {
+  if (raw === undefined || raw === null || raw === 'SE') return 'SE';
+  if (raw === 'EU') return 'EU';
+  throw new ShopInputError('invalid_region');
+}
+
+/**
+ * Untrusted `allow_eu` from a search request body. The EU fallback is opt-in: only a strict `true` turns it on
+ * (sent by the current app); absent = off, so older clients get exactly the Swedish-only behaviour.
+ * Not part of the search cache key: the Swedish cache entry is the same either way.
+ */
+export function parseAllowEu(raw: unknown): boolean {
+  if (raw === undefined) return false;
+  if (typeof raw !== 'boolean') throw new ShopInputError('invalid_allow_eu');
+  return raw;
+}
+
+/** The user's SEK price cap in the region's currency (rounded down for EUR, see SEK_PER_EUR). */
+export function priceCapFor(maxPriceSek: number, region: ShopRegion): { currency: string; amount: number } {
+  return region === 'EU'
+    ? { currency: SHOP_LOCALE_EU.currency, amount: Math.floor(maxPriceSek / SEK_PER_EUR) }
+    : { currency: SHOP_LOCALE.currency, amount: maxPriceSek };
+}
+
+/** True when the Swedish results are too few and the (paid) EU fallback should run. */
+export function needsEuFallback(swedishResults: number): boolean {
+  return swedishResults < EU_FALLBACK_MIN_SE_RESULTS;
+}
+
+/**
+ * Swedish cards first, then EU cards not already shown, capped at SHOP_RESULT_LIMIT. Each list is already ranked
+ * second-hand first, so that order holds within each region.
+ */
+export function mergeRegions(se: readonly ShopProduct[], eu: readonly ShopProduct[]): ShopProduct[] {
+  const seen = new Set<string>();
+  const merged: ShopProduct[] = [];
+  for (const p of [...se, ...eu]) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    merged.push(p);
+  }
+  return merged.slice(0, SHOP_RESULT_LIMIT);
+}
+
+/**
+ * Stable string for the search-result cache key (hashed by the caller). Includes the locale and result limit, so
+ * the Swedish and EU id lists of one search are separate entries (the Swedish key is unchanged from before the
+ * fallback, so older cache rows stay valid).
+ */
+export function searchCacheMaterial(input: ShopSearchInput, region: ShopRegion = 'SE'): string {
   const f = input.filters;
+  const locale = localeFor(region);
   return JSON.stringify([
     'v1',
-    SHOP_LOCALE.country,
-    SHOP_LOCALE.currency,
-    SHOP_LOCALE.language,
+    locale.country,
+    locale.currency,
+    locale.language,
     SHOP_RESULT_LIMIT,
     input.query,
     f.category ?? null,
@@ -106,8 +182,8 @@ export function searchCacheMaterial(input: ShopSearchInput): string {
   ]);
 }
 
-/** Request body for Channel3 `POST /v1/search` (schema checked 2026-11-15). */
-export function buildChannel3Search(input: ShopSearchInput) {
+/** Request body for Channel3 `POST /v1/search` (schema checked 2026-11-15). The price cap is sent in the region's currency. */
+export function buildChannel3Search(input: ShopSearchInput, region: ShopRegion = 'SE') {
   const f = input.filters;
   const words = [input.query, f.category ? CATEGORY_QUERY[f.category] : ''].filter(Boolean);
   const filters: Record<string, unknown> = {
@@ -117,12 +193,12 @@ export function buildChannel3Search(input: ShopSearchInput) {
     age: ['adult'],
   };
   if (f.gender) filters.gender = f.gender;
-  if (f.maxPrice) filters.price = { max_price: f.maxPrice };
+  if (f.maxPrice) filters.price = { max_price: priceCapFor(f.maxPrice, region).amount };
   return {
     query: words.join(' '),
     limit: SHOP_RESULT_LIMIT,
     filters,
-    config: { ...SHOP_LOCALE, mode: 'default' },
+    config: { ...localeFor(region), mode: 'default' },
   };
 }
 
@@ -146,6 +222,8 @@ export type ShopProduct = {
   gender: ShopGender | null;
   materials: string[];
   offer: ShopOffer | null;
+  /** 'EU' for cards from the EU fallback (price in EUR, delivery to Sweden not verified). Absent = Swedish. */
+  region?: 'EU';
 };
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -177,10 +255,13 @@ function parseOffer(raw: unknown): (ShopOffer & { inStock: boolean }) | null {
 /**
  * Best offer for the card: only in-stock offers; second-hand first, then the lowest price, then the highest
  * commission as the last tie-breaker (docs/channel3.md → Ranking). null = nothing buyable right now.
+ * With `currency`, offers in any other currency are dropped (EU cards must be priced in EUR, so "€" is never wrong).
  */
-export function pickBestOffer(rawOffers: unknown): ShopOffer | null {
+export function pickBestOffer(rawOffers: unknown, currency?: string): ShopOffer | null {
   if (!Array.isArray(rawOffers)) return null;
-  const offers = rawOffers.map(parseOffer).filter((o): o is NonNullable<typeof o> => o !== null && o.inStock);
+  const offers = rawOffers
+    .map(parseOffer)
+    .filter((o): o is NonNullable<typeof o> => o !== null && o.inStock && (!currency || o.currency === currency));
   offers.sort(
     (a, b) =>
       Number(b.condition === 'used') - Number(a.condition === 'used') ||
@@ -202,7 +283,7 @@ function mainImage(raw: unknown): string | null {
 }
 
 /** Parses one Channel3 Product. Returns null for anything we can't show (no id or title). */
-export function parseProduct(raw: unknown): ShopProduct | null {
+export function parseProduct(raw: unknown, region: ShopRegion = 'SE'): ShopProduct | null {
   const p = raw as Record<string, unknown> | null;
   if (!p || typeof p !== 'object') return null;
   const id = str(p.id);
@@ -218,15 +299,22 @@ export function parseProduct(raw: unknown): ShopProduct | null {
     categorySlug: str(category?.slug)?.slice(0, 200) ?? null,
     gender: p.gender === 'male' || p.gender === 'female' ? p.gender : null,
     materials: Array.isArray(p.materials) ? p.materials.filter((m): m is string => typeof m === 'string').slice(0, 8) : [],
-    offer: pickBestOffer(p.offers),
+    offer: pickBestOffer(p.offers, region === 'EU' ? SHOP_LOCALE_EU.currency : undefined),
+    ...(region === 'EU' ? { region } : {}),
   };
 }
 
-/** Does a fully loaded card pass the user's filters? Needs a buyable offer; enforces the price cap and used-only. */
+/**
+ * Does a fully loaded card pass the user's filters? Needs a buyable offer; enforces the price cap (in the card's
+ * region currency: SEK, or EUR for EU cards) and used-only.
+ */
 export function passesFilters(p: ShopProduct, filters: ShopFilters = {}): boolean {
   if (!p.offer) return false;
   // The cap is also sent to Channel3; this guards against offers in another currency or a stale cached price.
-  if (filters.maxPrice && (p.offer.currency !== 'SEK' || p.offer.price > filters.maxPrice)) return false;
+  if (filters.maxPrice) {
+    const cap = priceCapFor(filters.maxPrice, p.region ?? 'SE');
+    if (p.offer.currency !== cap.currency || p.offer.price > cap.amount) return false;
+  }
   if (filters.usedOnly && p.offer.condition !== 'used') return false;
   return true;
 }
@@ -247,10 +335,13 @@ export function filterAndRank(products: readonly (ShopProduct | null)[], filters
 }
 
 /** Turns a Channel3 SearchResponse into the cards we show (see filterAndRank). */
-export function parseSearchResponse(raw: unknown, filters: ShopFilters = {}): ShopProduct[] {
+export function parseSearchResponse(raw: unknown, filters: ShopFilters = {}, region: ShopRegion = 'SE'): ShopProduct[] {
   const list = (raw as { products?: unknown } | null)?.products;
   if (!Array.isArray(list)) return [];
-  return filterAndRank(list.map(parseProduct), filters);
+  return filterAndRank(
+    list.map((item) => parseProduct(item, region)),
+    filters,
+  );
 }
 
 export function rankSecondHandFirst(products: readonly ShopProduct[]): ShopProduct[] {
@@ -280,13 +371,20 @@ export function toExternalProductRow(p: ShopProduct, now: Date = new Date()) {
  * Card shown from the cache when the fresh product call fails: display fields only, no offer (the app fetches a
  * link when it's tapped). Returns null if the cached row doesn't pass the filters (price cap, used-only).
  */
-export function fromExternalProductRow(row: Record<string, unknown>, filters: ShopFilters = {}): ShopProduct | null {
+export function fromExternalProductRow(
+  row: Record<string, unknown>,
+  filters: ShopFilters = {},
+  region: ShopRegion = 'SE',
+): ShopProduct | null {
   const id = str(row.external_id);
   const title = str(row.title);
   if (!id || !title) return null;
   const price = typeof row.price === 'number' ? row.price : Number(row.price);
   if (filters.usedOnly && row.condition !== 'used') return null;
-  if (filters.maxPrice && (row.currency !== 'SEK' || !Number.isFinite(price) || price > filters.maxPrice)) return null;
+  if (filters.maxPrice) {
+    const cap = priceCapFor(filters.maxPrice, region);
+    if (row.currency !== cap.currency || !Number.isFinite(price) || price > cap.amount) return null;
+  }
   return {
     id,
     title,
@@ -296,6 +394,7 @@ export function fromExternalProductRow(row: Record<string, unknown>, filters: Sh
     gender: row.gender === 'male' || row.gender === 'female' ? row.gender : null,
     materials: Array.isArray(row.materials) ? (row.materials as unknown[]).filter((m): m is string => typeof m === 'string') : [],
     offer: null,
+    ...(region === 'EU' ? { region } : {}),
   };
 }
 

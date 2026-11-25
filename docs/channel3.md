@@ -58,6 +58,21 @@ seconds of latency, so only behind an explicit user action.
   colour. The title must name a colour; a type or category alone never counts. Cards keep their place in the ranking.
   Runs in the app on data it already has: no AI call, no Channel3 credit. Replaced by the matching engine in M3.
   Logic and tests: `src/lib/ownedSimilar.ts`.
+- **EU fallback** (built 2026-11-19, opt-in: the app sends `allow_eu: true`; without it the function is Swedish-only):
+  if the Swedish search keeps fewer than **4** cards (`EU_FALLBACK_MIN_SE_RESULTS`, one phone screen), one more paid search runs with `config: { country: 'EU', currency: 'EUR', language: 'en' }`
+  (`EU` is a documented pan-region value, see [Localization](https://channel3.ai/docs/guides/localization)).
+  Logged first as model `v1/search:eu`, 7 s timeout; if that log or the call fails, the Swedish results are returned alone.
+  The `channel3-search.search` log event records `eu_fallback` and `duration_ms`.
+  So a thin search costs 2 credits, a normal one 1.
+  - Price cap: the SEK cap is sent as EUR at a fixed, deliberately high **12 SEK/EUR** (`SEK_PER_EUR`, rounded down:
+    500 / 1,000 / 2,000 kr → €41 / €83 / €166), so an EU item never costs more than the cap the user picked.
+  - Results: Swedish cards first, then EU cards not already shown, second-hand first within each, max 12. EU cards
+    carry `region: 'EU'` in the response (Swedish cards unchanged), keep only EUR offers, and show "EU shop".
+  - Cache: the EU id list is its own `channel3_search_cache` entry (key includes the EU locale; the Swedish key is
+    unchanged, so no schema change). A cache hit refreshes each id in its own locale and never pays for a new fallback.
+    The `offer` action takes `region: 'EU'` for EU cards (anything else but `SE` → `invalid_region`).
+  - **Shipping to Sweden is not verified.** Channel3 offers have no shipping-destination field, so we can't filter EU
+    shops by delivery to SE. The UI says so above the results ("EU shops may not deliver to Sweden..."). We show them with that warning rather than hiding them (see [`DECISIONS.md`](DECISIONS.md)).
 
 ## Caching rules (important)
 Channel3 says: **cache IDs, not data**. Prices, stock and offer URLs change, and offer URLs are short-lived affiliate links.
@@ -93,7 +108,7 @@ Search-result cache key = hash of (normalised query, image hash, filters, locale
 
 ## Ranking and labelling
 - Order in the recreated outfit: **owned → marketplace (used) → Channel3 used → Channel3 new**.
-- Only offers that ship to Sweden are shown (locale `SE`; with the `EU` fallback we keep only offers whose shop ships to SE).
+- Swedish results (locale `SE`) come first. EU-fallback results are shown after them, marked "EU shop", with a note that delivery to Sweden isn't verified (see [`DECISIONS.md`](DECISIONS.md)).
 - Within those, rank by visual + attribute fit (Fashion agent's score), then price fit.
   `max_commission_rate` is used **only as a tie-breaker** when fit scores are equal. Never above a better match.
 - Every shop link is labelled "Shop link · we may earn a commission" in the UI. Link opens the retailer in the browser.

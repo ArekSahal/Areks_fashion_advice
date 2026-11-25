@@ -27,6 +27,12 @@ const GENDER_OPTIONS = SHOP_GENDERS.map((g) => ({ value: g, label: SHOP_GENDER_L
 const SKELETON = ['a', 'b', 'c', 'd'];
 /** Required label on every shop link (docs/channel3.md → Ranking and labelling). */
 const COMMISSION_LABEL = 'Shop link · we may earn a commission';
+/**
+ * EU fallback cards (docs/channel3.md → M1.5): priced in EUR, delivery to Sweden not verified by Channel3.
+ * Short enough for one line in the 2-column grid; the note above the grid and the a11y label carry the warning.
+ */
+const EU_LABEL = 'EU shop';
+const EU_NOTE = 'EU shops may not deliver to Sweden. Check delivery on the shop’s site before you buy.';
 const PRICE_OPTIONS = SHOP_MAX_PRICES.map((p) => ({ value: String(p) as `${ShopMaxPrice}`, label: `Under ${formatPrice(p, 'SEK')}` }));
 
 /**
@@ -37,10 +43,11 @@ function ProductCard({ product, ownedLabel, onOpen }: { product: ShopProduct; ow
   const t = useTheme();
   const offer = product.offer;
   const used = offer?.condition === 'used';
+  const eu = product.region === 'EU';
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}${ownedLabel ? `. ${ownedLabel}` : ''}. Opens the shop`}
+      accessibilityLabel={`${product.title}${offer ? `, ${formatPrice(offer.price, offer.currency)}` : ''}${used ? ', second-hand' : ''}${eu ? ', EU shop, may not deliver to Sweden' : ''}${ownedLabel ? `. ${ownedLabel}` : ''}. Opens the shop`}
       onPress={onOpen}
       style={{ gap: t.space.xs }}
     >
@@ -85,6 +92,11 @@ function ProductCard({ product, ownedLabel, onOpen }: { product: ShopProduct; ow
       {ownedLabel ? (
         <Text variant="caption" numberOfLines={1}>
           {ownedLabel}
+        </Text>
+      ) : null}
+      {eu ? (
+        <Text variant="caption" muted numberOfLines={1}>
+          {EU_LABEL}
         </Text>
       ) : null}
       <Text variant="caption" muted numberOfLines={1}>
@@ -159,7 +171,7 @@ export function ShopView() {
     const tab = !fresh && Platform.OS === 'web' ? window.open('', '_blank') : null;
     setOpening(true);
     try {
-      const url = fresh ?? (await fetchOfferUrl(product.id));
+      const url = fresh ?? (await fetchOfferUrl(product));
       if (!url) {
         tab?.close();
         setError('That item is no longer available.');
@@ -207,12 +219,17 @@ export function ShopView() {
       ) : results === null ? (
         <EmptyState
           title="Shop online stores"
-          body="Search clothes from shops that deliver to Sweden. Second-hand offers come first."
+          body="Search clothes from online shops. Swedish shops and second-hand offers come first."
         />
       ) : results.products.length === 0 ? (
         <EmptyState title="Nothing found" body="Try fewer words or remove a filter." />
       ) : (
         <>
+          {results.products.some((p) => p.region === 'EU') ? (
+            <Text variant="caption" muted>
+              {EU_NOTE}
+            </Text>
+          ) : null}
           <PhotoGrid
             items={results.products}
             columns={columns}
