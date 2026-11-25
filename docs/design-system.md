@@ -81,7 +81,8 @@ Available now in `@/ui`:
 - `SwitchRow` (setting with description)
 - `Section` (surface card with optional heading)
 - `EmptyState` (title, body, one action)
-- `ItemCard` (4:5 photo well + optional 1-line label; `uri={null}` is the loading skeleton)
+- `ItemCard` (4:5 photo well + optional 1-line label; `uri={null}` is the loading skeleton; `selected` true/false makes it
+  a pick-many card with an accent ring and check mark, wrapped by the caller in a pressable with the `checkbox` role)
 - `PhotoGrid` (equal columns; use `gridColumns(width)` from `src/lib/photo.ts`: 2 on phones, up to 5 on wide web)
 - `ColourSwatch` (garment colour dot on a `borderStrong` ring); `Chip` takes an optional `swatch`
 - `MultiChipGroup` (multi choice; the caller handles order and limits, e.g. colours max 3, dominant first)
