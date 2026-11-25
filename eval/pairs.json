@@ -1,0 +1,990 @@
+{
+ "_doc": "Hand-labelled pairs for the styling engine (docs/styling-engine.md section 7). Starter set by the Fashion agent; owners and friends can add pairs. label: good | ok | bad. wear: menswear | womenswear | unisex.",
+ "pairs": [
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "blazer",
+    "colours": [
+     "navy"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "grey"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Navy and grey at business level: the classic odd-trouser combination."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "white"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "chinos",
+    "colours": [
+     "navy"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Crisp white over navy, one formality step apart."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "coat",
+    "colours": [
+     "camel"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "grey"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Camel warms up grey; both smart."
+  },
+  {
+   "wear": "unisex",
+   "label": "good",
+   "seed": {
+    "subcategory": "jeans",
+    "colours": [
+     "denim_blue"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "denim"
+    ]
+   },
+   "candidate": {
+    "subcategory": "t_shirt",
+    "colours": [
+     "white"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "The default casual uniform."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "knit",
+    "colours": [
+     "navy"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "merino"
+    ]
+   },
+   "candidate": {
+    "subcategory": "loafers",
+    "colours": [
+     "brown"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "suede"
+    ]
+   },
+   "reason": "Navy and brown, smart-casual."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "overshirt",
+    "colours": [
+     "olive"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "jeans",
+    "colours": [
+     "black"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "denim"
+    ]
+   },
+   "reason": "Two neutrals, same casual level."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "blazer",
+    "colours": [
+     "navy"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "jeans",
+    "colours": [
+     "denim_blue"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "denim"
+    ]
+   },
+   "reason": "Blazer and jeans: deliberate smart-casual contrast."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "dress",
+    "colours": [
+     "black"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "viscose"
+    ]
+   },
+   "candidate": {
+    "subcategory": "coat",
+    "colours": [
+     "camel"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Black and camel, both elegant."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "blouse",
+    "colours": [
+     "white"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "silk"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "black"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Monochrome office look."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "dress",
+    "colours": [
+     "pink",
+     "green"
+    ],
+    "formality": 2,
+    "pattern": "floral",
+    "materials": [
+     "viscose"
+    ]
+   },
+   "candidate": {
+    "subcategory": "jacket",
+    "colours": [
+     "denim_blue"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "denim"
+    ]
+   },
+   "reason": "A plain denim jacket calms a floral dress."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "raincoat",
+    "colours": [
+     "beige"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "jeans",
+    "colours": [
+     "denim_blue"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "denim"
+    ]
+   },
+   "reason": "Trench and jeans."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "knit",
+    "colours": [
+     "burgundy"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "skirt",
+    "colours": [
+     "grey"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Deep red on grey, both wool, autumn."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "blouse",
+    "colours": [
+     "pink"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "silk"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "navy"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Soft pink lifts navy."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "jeans",
+    "colours": [
+     "black"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "denim"
+    ]
+   },
+   "candidate": {
+    "subcategory": "sneakers",
+    "colours": [
+     "white"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "leather"
+    ]
+   },
+   "reason": "Easy casual base."
+  },
+  {
+   "wear": "unisex",
+   "label": "good",
+   "seed": {
+    "subcategory": "knit",
+    "colours": [
+     "rust"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "chinos",
+    "colours": [
+     "olive"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Earthy autumn palette."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "knit",
+    "colours": [
+     "lavender"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "merino"
+    ]
+   },
+   "candidate": {
+    "subcategory": "skirt",
+    "colours": [
+     "light_blue"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Two pastels next to each other on the wheel."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "white",
+     "navy"
+    ],
+    "formality": 3,
+    "pattern": "stripe",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "chinos",
+    "colours": [
+     "navy"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "One stripe plus plain navy picks up the stripe colour."
+  },
+  {
+   "wear": "menswear",
+   "label": "ok",
+   "seed": {
+    "subcategory": "t_shirt",
+    "colours": [
+     "red"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "shorts",
+    "colours": [
+     "green"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Complementary brights: loud, works for some."
+  },
+  {
+   "wear": "womenswear",
+   "label": "ok",
+   "seed": {
+    "subcategory": "knit",
+    "colours": [
+     "mustard"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "skirt",
+    "colours": [
+     "purple"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Bold complementary, needs confidence."
+  },
+  {
+   "wear": "unisex",
+   "label": "ok",
+   "seed": {
+    "subcategory": "hoodie",
+    "colours": [
+     "grey"
+    ],
+    "formality": 1,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "chinos",
+    "colours": [
+     "beige"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Formality gap of two; fine off duty."
+  },
+  {
+   "wear": "womenswear",
+   "label": "ok",
+   "seed": {
+    "subcategory": "blouse",
+    "colours": [
+     "yellow"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "viscose"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "blue"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "polyester"
+    ]
+   },
+   "reason": "Triadic: playful, not classic."
+  },
+  {
+   "wear": "menswear",
+   "label": "ok",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "light_blue"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "sneakers",
+    "colours": [
+     "white"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "leather"
+    ]
+   },
+   "reason": "Shirt with sneakers: modern, a step casual."
+  },
+  {
+   "wear": "menswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "hoodie",
+    "colours": [
+     "grey"
+    ],
+    "formality": 1,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "charcoal"
+    ],
+    "formality": 5,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Gym hoodie with suit trousers."
+  },
+  {
+   "wear": "menswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "blue",
+     "white"
+    ],
+    "formality": 2,
+    "pattern": "check",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "shorts",
+    "colours": [
+     "green",
+     "pink"
+    ],
+    "formality": 2,
+    "pattern": "floral",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Two loud prints compete."
+  },
+  {
+   "wear": "womenswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "blouse",
+    "colours": [
+     "camel",
+     "black"
+    ],
+    "formality": 3,
+    "pattern": "animal",
+    "materials": [
+     "silk"
+    ]
+   },
+   "candidate": {
+    "subcategory": "skirt",
+    "colours": [
+     "red",
+     "pink"
+    ],
+    "formality": 3,
+    "pattern": "floral",
+    "materials": [
+     "viscose"
+    ]
+   },
+   "reason": "Animal print with florals."
+  },
+  {
+   "wear": "menswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "knit",
+    "colours": [
+     "grey"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "cashmere"
+    ]
+   },
+   "candidate": {
+    "subcategory": "shorts",
+    "colours": [
+     "beige"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "linen"
+    ]
+   },
+   "reason": "Cashmere jumper with linen shorts: wrong weight."
+  },
+  {
+   "wear": "womenswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "heels",
+    "colours": [
+     "black"
+    ],
+    "formality": 5,
+    "pattern": "solid",
+    "materials": [
+     "leather"
+    ]
+   },
+   "candidate": {
+    "subcategory": "joggers",
+    "colours": [
+     "grey"
+    ],
+    "formality": 1,
+    "pattern": "solid",
+    "materials": [
+     "jersey"
+    ]
+   },
+   "reason": "Formal heels with joggers."
+  },
+  {
+   "wear": "womenswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "blouse",
+    "colours": [
+     "yellow"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "silk"
+    ]
+   },
+   "candidate": {
+    "subcategory": "skirt",
+    "colours": [
+     "teal"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Clashing hues and formality."
+  },
+  {
+   "wear": "menswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "jeans",
+    "colours": [
+     "denim_blue"
+    ],
+    "formality": 2,
+    "pattern": "solid",
+    "materials": [
+     "denim"
+    ]
+   },
+   "candidate": {
+    "subcategory": "chinos",
+    "colours": [
+     "beige"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Two bottoms."
+  },
+  {
+   "wear": "menswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "t_shirt",
+    "colours": [
+     "black"
+    ],
+    "formality": 1,
+    "pattern": "graphic",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "derbies",
+    "colours": [
+     "black"
+    ],
+    "formality": 5,
+    "pattern": "solid",
+    "materials": [
+     "leather"
+    ]
+   },
+   "reason": "Graphic tee with formal shoes."
+  },
+  {
+   "wear": "womenswear",
+   "label": "ok",
+   "seed": {
+    "subcategory": "dress",
+    "colours": [
+     "red",
+     "white"
+    ],
+    "formality": 3,
+    "pattern": "floral",
+    "materials": [
+     "viscose"
+    ]
+   },
+   "candidate": {
+    "subcategory": "cardigan",
+    "colours": [
+     "navy",
+     "white"
+    ],
+    "formality": 3,
+    "pattern": "stripe",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "reason": "Stripe works as a neutral print; shared white ties them together."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "skirt",
+    "colours": [
+     "beige"
+    ],
+    "formality": 3,
+    "pattern": "solid",
+    "materials": [
+     "silk"
+    ]
+   },
+   "candidate": {
+    "subcategory": "knit",
+    "colours": [
+     "grey"
+    ],
+    "formality": 3,
+    "pattern": "knit_texture",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Silk slip skirt with a wool knit: classic texture contrast."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "white",
+     "blue"
+    ],
+    "formality": 4,
+    "pattern": "stripe",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "blazer",
+    "colours": [
+     "navy",
+     "grey"
+    ],
+    "formality": 4,
+    "pattern": "check",
+    "materials": [
+     "wool"
+    ]
+   },
+   "reason": "Stripe + check at different scales: classic tailoring mix."
+  },
+  {
+   "wear": "menswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "shirt",
+    "colours": [
+     "light_blue"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "cotton"
+    ]
+   },
+   "candidate": {
+    "subcategory": "tie",
+    "colours": [
+     "navy",
+     "white"
+    ],
+    "formality": 4,
+    "pattern": "polka_dot",
+    "materials": [
+     "silk"
+    ]
+   },
+   "reason": "Plain shirt, patterned tie."
+  },
+  {
+   "wear": "womenswear",
+   "label": "good",
+   "seed": {
+    "subcategory": "blazer",
+    "colours": [
+     "grey"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "wool"
+    ]
+   },
+   "candidate": {
+    "subcategory": "blouse",
+    "colours": [
+     "white"
+    ],
+    "formality": 4,
+    "pattern": "solid",
+    "materials": [
+     "silk"
+    ]
+   },
+   "reason": "Office staple: grey blazer, white silk blouse."
+  },
+  {
+   "wear": "womenswear",
+   "label": "bad",
+   "seed": {
+    "subcategory": "blouse",
+    "colours": [
+     "green",
+     "pink"
+    ],
+    "formality": 3,
+    "pattern": "floral",
+    "materials": [
+     "viscose"
+    ]
+   },
+   "candidate": {
+    "subcategory": "trousers",
+    "colours": [
+     "camel",
+     "black"
+    ],
+    "formality": 3,
+    "pattern": "animal",
+    "materials": [
+     "polyester"
+    ]
+   },
+   "reason": "Floral with leopard: two loud prints fight."
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 # Styling engine
 
-_Owner: Fashion agent. v1, 2026-11-10. Code: `src/lib/taxonomy.ts` (taxonomy + pairwise rules)._
+_Owner: Fashion agent. v1, 2026-11-10. Code: `src/lib/taxonomy.ts` (taxonomy + pairwise rules), `src/lib/pairScore.ts` (pair score, ranking, reasons)._
 
 The engine answers three questions, in this order of build:
 1. **"What goes with this?"** (M3): given one item, rank the user's other items that pair with it.
@@ -44,18 +44,29 @@ score = 0.35·colour + 0.25·formality + 0.15·pattern + 0.10·season + 0.15·sl
   neutral detail can't rescue two clashing main colours. Neutral pairs with everything; monochrome and analogous score
   high; same-tone pairs (two pastels, two jewel tones) score well; complementary is a deliberate statement; the
   in-between hues ("contrast") score lowest but are not forbidden.
-- **formality**: gap 0 → 1, gap 1 → 0.85, gap 2 → 0.5 (intentional contrast like blazer + jeans), 3+ → near 0.
-- **pattern**: one print + quiet pieces = 1; two loud prints = 0.3.
+- **formality**: gap 0 → 1, gap 1 → 0.85, gap 2 → 0.5 (intentional contrast like blazer + jeans); 3+ is a hard rule (below).
+- **pattern**: one print + quiet pieces = 1; two loud prints = 0.3. A real print clash also multiplies the whole score
+  by 0.8 (at 0.15 weight the term alone can't outweigh two neutral colours). Not a clash: a patterned accessory (ties
+  are nearly always patterned) or a stripe with a different print (stripe + check, Breton + floral; stripes act as a
+  neutral print). Stripe on stripe and two other prints are clashes.
 - **season**: hard filter when the user asks "for today" (weather), soft score otherwise.
 - **slot_bonus**: candidate fills a slot the seed needs (top needs bottom + shoes; dress needs shoes + outerwear).
 
-Hard rules (filter, don't score, `canPair`): two items in the same slot never pair (two trousers, two base-layer tops,
-two coats), but layering is fine (shirt + knit + coat; dress + cardigan); several accessories are fine. Warmth gap ≥ 3
-between non-outerwear pieces is dropped (outerwear is exempt: linen shirt + down parka is layering). Items with status
-`sold` / `archived` are excluded.
+Hard rules (filter, don't score, `pairBlock`): two items in the same slot never pair (`canPair`: two trousers, two
+base-layer tops, two coats), but layering is fine (shirt + knit + coat; dress + cardigan); several accessories are fine.
+A formality gap of 3+ is dropped (hoodie + suit trousers, heels + joggers). A warmth gap ≥ 3 is dropped unless one piece
+is routinely layered with heavier ones: outerwear, a base-layer top, a dress or jumpsuit, a skirt or an accessory (linen
+shirt + down parka, silk blouse + wool trousers, silk slip skirt + wool knit, wool scarf + silk dress); a cashmere jumper
+with linen shorts is still dropped. Items with status `sold` / `archived` are excluded.
+Missing tags never block a pair; that term scores 0.5 ("no opinion"). Unconfirmed tags are used but flagged.
 
-**Explanation:** the top two contributing rules become the sentence, e.g.
-_"The camel coat warms up the grey trousers, and both sit at the same smart-casual level."_
+**Showing matches:** `rankMatches` keeps pairs scoring **≥ 0.75**, best first (top 10). The cut-off is tuned on the
+evaluation set: every pair labelled bad scores below it and every good or ok pair above.
+
+**Explanation:** the top two contributing rules (colour, formality, pattern) become the sentence, e.g.
+_"The camel coat warms up the grey trousers, and both sit at the same business level."_ Earthy neutrals (camel, beige,
+brown, olive, gold) "warm up" cool ones; a neutral next to a colour "lets it take the lead"; clashes are never given
+as a reason. A printed piece is named by its print ("the striped shirt"), and then the colour sentence is skipped.
 v1 uses templates per rule; the LLM layer rewrites them more naturally later (cheap model, cached per pair).
 
 ## 3. Embeddings (M3 v2)
@@ -106,9 +117,10 @@ Unlocks after 15 diary outfits. Produces:
 4. Show the full outfit with each piece labelled **owned / buy used / buy new** and a one-line reason for the match.
 
 ## 7. Evaluation set
-`eval/pairs.json` (created in M3): hand-labelled pairs `{seed, candidate, label: good|ok|bad, reason}`, at least 200 pairs
+`eval/pairs.json` (started in M3 with 31 pairs; the test in `src/lib/pairScore.test.ts` prints the score on every run):
+hand-labelled pairs `{wear, seed, candidate, label: good|ok|bad, reason}`, growing to at least 200 pairs
 covering casual, smart casual and business looks for both menswear and womenswear. Owners and friends can add pairs.
-Metric: NDCG@5 for "what goes with this?" plus agreement rate with "good" labels. Reported in the heartbeat when the engine changes.
+Metric: good-vs-bad pairwise accuracy and label means now; NDCG@5 for "what goes with this?" once the set has full wardrobes. Reported in the heartbeat when the engine changes.
 
 ## 8. Things we deliberately don't do
 - No body-shape or face analysis unless the user opts in (privacy).
