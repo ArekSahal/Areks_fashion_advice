@@ -158,10 +158,19 @@ export default function Wardrobe() {
             keyOf={(item) => item.id}
             renderItem={(item) => {
               const path = item.thumb_path ?? item.image_path;
-              const card = <ItemCard uri={path ? (data.urls[path] ?? null) : null} label={label(item)} />;
-              if (item.tags_confirmed_at) return card;
-              // Untagged (skipped) items open the confirm-tags screen.
-              return (
+              const text = label(item);
+              const card = <ItemCard uri={path ? (data.urls[path] ?? null) : null} label={text} />;
+              // Tagged items open the item screen (wear count, #56); untagged (skipped) items open confirm-tags.
+              return item.tags_confirmed_at ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${text ?? 'Item'}. Open`}
+                  onPress={() => router.push({ pathname: '/item/[id]', params: { id: item.id } })}
+                  style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
+                >
+                  {card}
+                </Pressable>
+              ) : (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Item needs tags. Add tags"

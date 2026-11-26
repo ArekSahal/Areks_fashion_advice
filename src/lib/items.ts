@@ -23,15 +23,24 @@ export type WardrobeItem = {
 
 const SIGNED_URL_SECONDS = 60 * 60;
 
+const WARDROBE_COLUMNS = 'id, thumb_path, image_path, category, subcategory, tags_confirmed_at, created_at';
+
 /** The signed-in user's items, newest first (RLS only returns your own rows). */
 export async function listMyItems(): Promise<WardrobeItem[]> {
   const { data, error } = await supabase
     .from('clothing_items')
-    .select('id, thumb_path, image_path, category, subcategory, tags_confirmed_at, created_at')
+    .select(WARDROBE_COLUMNS)
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) throw error;
   return (data ?? []) as WardrobeItem[];
+}
+
+/** One of the user's items, or null if it doesn't exist (or isn't yours: RLS). */
+export async function getMyItem(itemId: string): Promise<WardrobeItem | null> {
+  const { data, error } = await supabase.from('clothing_items').select(WARDROBE_COLUMNS).eq('id', itemId).maybeSingle();
+  if (error) throw error;
+  return (data as WardrobeItem | null) ?? null;
 }
 
 /** Short-lived signed links for private item photos, keyed by path. Paths that fail are left out. */
