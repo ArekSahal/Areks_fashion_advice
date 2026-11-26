@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
 import { localDateString, pieceLabel } from '@/lib/diary';
 import { getMyItem, signedPhotoUrls, type WardrobeItem } from '@/lib/items';
@@ -51,12 +51,16 @@ export default function ItemScreen() {
   );
 
   // Reload on focus, e.g. after editing tags or logging an outfit.
+  // `focused` lets "Try again" skip state updates once the screen has gone (unmounted or left).
+  const focused = useRef(false);
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      focused.current = true;
       load(() => active);
       return () => {
         active = false;
+        focused.current = false;
       };
     }, [load]),
   );
@@ -64,7 +68,9 @@ export default function ItemScreen() {
   if (failed && !data) {
     return (
       <Screen>
-        <Text variant="title">Item</Text>
+        <Text variant="title" accessibilityRole="header">
+          Item
+        </Text>
         <EmptyState
           title="We couldn’t load this item"
           body="Check your connection and try again."
@@ -72,7 +78,7 @@ export default function ItemScreen() {
             label: 'Try again',
             onPress: () => {
               setFailed(false);
-              load(() => true);
+              load(() => focused.current);
             },
           }}
         />
@@ -84,7 +90,9 @@ export default function ItemScreen() {
   if (data === 'missing') {
     return (
       <Screen>
-        <Text variant="title">Item</Text>
+        <Text variant="title" accessibilityRole="header">
+          Item
+        </Text>
         <Text muted>We couldn’t find this item. It may have been removed.</Text>
         <Button label="Back to wardrobe" onPress={back} />
       </Screen>
@@ -130,7 +138,7 @@ export default function ItemScreen() {
           <Button
             label={confirmed ? 'Edit tags' : 'Add tags'}
             variant={confirmed ? 'secondary' : 'primary'}
-            onPress={() => router.push({ pathname: '/confirm-tags', params: { id: data.item.id } })}
+            onPress={() => router.push({ pathname: '/confirm-tags', params: { id: data.item.id, from: 'item' } })}
           />
         </>
       ) : (

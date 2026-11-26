@@ -106,8 +106,14 @@ function toWardrobe() {
  */
 export default function ConfirmTags() {
   const t = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const itemId = typeof id === 'string' ? id : '';
+  // Opened from the item screen: go back there. Every other entry point (Add, wardrobe grid) ends on the wardrobe.
+  const fromItem = from === 'item';
+  const leave = () => {
+    if (fromItem && router.canGoBack()) router.back();
+    else toWardrobe();
+  };
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [photo, setPhoto] = useState<string | null>(null);
   const [form, setForm] = useState<TagForm>(() => initialForm(null));
@@ -178,7 +184,7 @@ export default function ConfirmTags() {
       await saveConfirmedTags(itemId, toConfirmedUpdate(form.tags));
       if (!active.current) return;
       setSaving(false);
-      toWardrobe();
+      leave();
     } catch {
       if (!active.current) return;
       setSaving(false);
@@ -209,7 +215,7 @@ export default function ConfirmTags() {
     </View>
   );
 
-  const skip = <Button label="Skip for now" variant="secondary" onPress={toWardrobe} disabled={saving} />;
+  const skip = <Button label="Skip for now" variant="secondary" onPress={leave} disabled={saving} />;
 
   if (phase.kind === 'loading') {
     return (
@@ -229,7 +235,7 @@ export default function ConfirmTags() {
       <Screen scroll>
         <Text variant="title">Check the tags</Text>
         <Text muted>We couldn’t find this item. It may have been removed.</Text>
-        <Button label="Back to wardrobe" onPress={toWardrobe} />
+        <Button label={fromItem ? 'Back' : 'Back to wardrobe'} onPress={leave} />
       </Screen>
     );
   }
@@ -257,7 +263,7 @@ export default function ConfirmTags() {
         {phase.error === 'needs_face_consent' ? (
           <Button label="Let AI see faces" variant="secondary" onPress={allowFaces} loading={consenting} />
         ) : null}
-        <Button label="Skip for now" variant="secondary" onPress={toWardrobe} disabled={consenting} />
+        <Button label="Skip for now" variant="secondary" onPress={leave} disabled={consenting} />
       </Screen>
     );
   }
@@ -386,7 +392,7 @@ export default function ConfirmTags() {
       ) : null}
       <Button label="Save tags" onPress={save} loading={saving} />
       {form.source === 'confirmed' ? (
-        <Button label="Cancel" variant="secondary" onPress={toWardrobe} disabled={saving} />
+        <Button label="Cancel" variant="secondary" onPress={leave} disabled={saving} />
       ) : (
         skip
       )}

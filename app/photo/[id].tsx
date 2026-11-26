@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Image, Pressable, useWindowDimensions, View } from 'react-native';
 import { signedPhotoUrls } from '@/lib/items';
 import { gridColumns } from '@/lib/photo';
@@ -56,12 +56,16 @@ export default function PhotoScreen() {
   );
 
   // Reload on focus, e.g. after confirming an item's tags.
+  // `focused` lets "Try again" skip state updates once the screen has gone (unmounted or left).
+  const focused = useRef(false);
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      focused.current = true;
       load(() => active);
       return () => {
         active = false;
+        focused.current = false;
       };
     }, [load]),
   );
@@ -69,11 +73,13 @@ export default function PhotoScreen() {
   if (failed && !data) {
     return (
       <Screen>
-        <Text variant="title">Outfit photo</Text>
+        <Text variant="title" accessibilityRole="header">
+          Outfit photo
+        </Text>
         <EmptyState
           title="We couldn’t load this photo"
           body="Check your connection and try again."
-          action={{ label: 'Try again', onPress: () => load(() => true) }}
+          action={{ label: 'Try again', onPress: () => load(() => focused.current) }}
         />
         <Button label="Back" variant="secondary" onPress={back} />
       </Screen>
@@ -83,7 +89,9 @@ export default function PhotoScreen() {
   if (data === 'missing') {
     return (
       <Screen>
-        <Text variant="title">Outfit photo</Text>
+        <Text variant="title" accessibilityRole="header">
+          Outfit photo
+        </Text>
         <Text muted>We couldn’t find this photo. It may have been removed.</Text>
         <Button label="Back to wardrobe" onPress={back} />
       </Screen>
@@ -94,7 +102,9 @@ export default function PhotoScreen() {
 
   return (
     <Screen scroll>
-      <Text variant="title">Outfit photo</Text>
+      <Text variant="title" accessibilityRole="header">
+        Outfit photo
+      </Text>
       <View
         style={{
           alignSelf: 'stretch',
