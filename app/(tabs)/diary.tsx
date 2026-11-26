@@ -244,7 +244,7 @@ function MonthCalendar({
                     backgroundColor: isSelected ? t.colours.accent : 'transparent',
                   }}
                 >
-                  <Text variant="label" style={{ color: fg }}>
+                  <Text variant="label" numberOfLines={1} style={{ color: fg }}>
                     {Number(day.slice(8))}
                   </Text>
                   <View style={{ width: dot, height: dot, borderRadius: t.radius.pill, backgroundColor: dotColour }} />
@@ -309,6 +309,11 @@ export default function Diary() {
     useCallback(() => {
       let active = true;
       load(() => active);
+      // The calendar never shows a month after today's (e.g. the device clock moved back since the last visit).
+      const today = localDateString();
+      const current = monthOf(today);
+      setShownMonth((m) => (compareMonths(m, current) > 0 ? current : m));
+      setSelectedDay((d) => (d && d > today ? null : d));
       return () => {
         active = false;
       };

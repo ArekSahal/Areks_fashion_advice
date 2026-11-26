@@ -191,7 +191,7 @@ describe('listEntriesSince / listEntriesBetween', () => {
       ['lte', 'worn_on', '2026-11-30'],
       ['order', 'worn_on', { ascending: false }],
       ['order', 'created_at', { ascending: true }],
-      ['limit', 100],
+      ['limit', 200],
     ]);
   });
 

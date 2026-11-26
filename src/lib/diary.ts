@@ -164,7 +164,7 @@ async function listEntries(fromDay: string, toDay: string | null): Promise<Diary
   const { data, error } = await query
     .order('worn_on', { ascending: false })
     .order('created_at', { ascending: true })
-    .limit(100);
+    .limit(200); // a busy calendar month must not lose entries silently
   if (error) throw error;
   const outfits = (data ?? []) as Omit<DiaryEntry, 'item_ids'>[];
   if (outfits.length === 0) return [];
