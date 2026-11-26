@@ -1,7 +1,10 @@
 // #56 slice 2: post today's outfit. Pure helpers (tested in diary.test.ts) plus the supabase-js reads and writes.
 // Data model: supabase/migrations/20261117090000_outfit_diary.sql. Several entries per day are allowed, so posting
 // always inserts a new entry; editing goes through the entry's id (never an upsert of the day).
+import { shortDate } from './calendar';
 import { supabase } from './supabase';
+
+export { shortDate };
 
 /** Most items one entry can hold: a full outfit plus accessories, and a cap on accidental mass selection. */
 export const MAX_OUTFIT_ITEMS = 20;
@@ -21,16 +24,6 @@ export function localDateString(date: Date = new Date()): string {
 export function addDays(day: string, days: number): string {
   const [y = 0, m = 1, d = 1] = day.split('-').map(Number);
   return localDateString(new Date(y, m - 1, d + days));
-}
-
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** E.g. "Mon 20 Nov" (English UI, fixed format so it reads the same on every device). */
-export function shortDate(day: string): string {
-  const [y = 0, m = 1, d = 1] = day.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return `${WEEKDAYS[date.getDay()]} ${d} ${MONTHS[m - 1]}`;
 }
 
 /** "Today", "Yesterday" or the short date. */
@@ -156,13 +149,22 @@ export function groupByDay(entries: readonly DiaryEntry[]): { day: string; entri
 
 /** The user's entries from `sinceDay` on (RLS only returns your own rows), with the items worn. */
 export async function listEntriesSince(sinceDay: string): Promise<DiaryEntry[]> {
-  const { data, error } = await supabase
-    .from('outfits')
-    .select('id, worn_on, photo_id, created_at')
-    .gte('worn_on', sinceDay)
+  return listEntries(sinceDay, null);
+}
+
+/** The user's entries from `fromDay` to `toDay`, both included (e.g. one calendar month), with the items worn. */
+export async function listEntriesBetween(fromDay: string, toDay: string): Promise<DiaryEntry[]> {
+  return listEntries(fromDay, toDay);
+}
+
+/** Newest day first, earliest entry first within a day. `toDay` null = no upper bound. */
+async function listEntries(fromDay: string, toDay: string | null): Promise<DiaryEntry[]> {
+  let query = supabase.from('outfits').select('id, worn_on, photo_id, created_at').gte('worn_on', fromDay);
+  if (toDay !== null) query = query.lte('worn_on', toDay);
+  const { data, error } = await query
     .order('worn_on', { ascending: false })
     .order('created_at', { ascending: true })
-    .limit(100);
+    .limit(200); // a busy calendar month must not lose entries silently
   if (error) throw error;
   const outfits = (data ?? []) as Omit<DiaryEntry, 'item_ids'>[];
   if (outfits.length === 0) return [];

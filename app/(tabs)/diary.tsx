@@ -1,6 +1,22 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import {
+  compareMonths,
+  dayCellLabel,
+  daysWithEntries,
+  entriesPerDay,
+  monthGrid,
+  monthLabel,
+  monthOf,
+  monthRange,
+  nextMonth,
+  prevMonth,
+  shortDate,
+  WEEKDAY_HEADERS,
+  type YearMonth,
+} from '@/lib/calendar';
 import {
   addDays,
   canSaveOutfit,
@@ -9,6 +25,7 @@ import {
   DIARY_ERROR_MESSAGE,
   diaryErrorKind,
   groupByDay,
+  listEntriesBetween,
   listEntriesSince,
   localDateString,
   MAX_OUTFIT_ITEMS,
@@ -17,7 +34,6 @@ import {
   pieceLabel,
   RECENT_DAYS,
   saveLabel,
-  shortDate,
   toggleItem,
   updateOutfit,
   type DiaryEntry,
@@ -25,7 +41,17 @@ import {
 import { listMyItems, signedPhotoUrls, type WardrobeItem } from '@/lib/items';
 import { gridColumns } from '@/lib/photo';
 import { listMyPhotos, type WardrobePhoto } from '@/lib/wardrobePhotos';
-import { Button, EmptyState, ItemCard, PhotoGrid, Screen, Section, Text, useTheme } from '@/ui';
+import {
+  Button,
+  EmptyState,
+  ItemCard,
+  PhotoGrid,
+  Screen,
+  Section,
+  SegmentedControl,
+  Text,
+  useTheme,
+} from '@/ui';
 
 type Loaded = {
   today: string;
@@ -42,6 +68,20 @@ type Loaded = {
 type Draft = { editing: DiaryEntry | null; isNew: boolean; itemIds: string[]; photoId: string | null };
 
 const SKELETON = ['a', 'b', 'c', 'd'];
+
+type DiaryView = 'recent' | 'calendar';
+
+const VIEWS: readonly { value: DiaryView; label: string }[] = [
+  { value: 'recent', label: `Last ${RECENT_DAYS} days` },
+  { value: 'calendar', label: 'Calendar' },
+];
+
+/** Entries loaded for one calendar month (`key` is "YYYY-M"), so a late reply for another month is never shown. */
+type MonthEntries = { key: string; entries: DiaryEntry[] };
+
+function monthKey(m: YearMonth): string {
+  return `${m.year}-${m.month}`;
+}
 
 function thumbOf(row: { thumb_path: string | null; image_path: string | null }, urls: Record<string, string>) {
   const path = row.thumb_path ?? row.image_path;
@@ -81,9 +121,146 @@ function EntryThumbs({ entry, data, columns }: { entry: DiaryEntry; data: Loaded
   );
 }
 
+/** Previous / next month arrow: a full 48pt touch target. */
+function MonthArrow({
+  icon,
+  label,
+  disabled,
+  onPress,
+}: {
+  icon: 'chevron-back' | 'chevron-forward';
+  label: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minWidth: t.touchTarget,
+        minHeight: t.touchTarget,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={t.space.xl} color={t.colours.text} />
+    </Pressable>
+  );
+}
+
+/**
+ * Month grid, Monday first. Days with entries get an accent dot, today an accent outline, the selected day an accent
+ * fill. Future days can't be picked. `entries` null = still loading (no dots yet, labels say only the date).
+ */
+function MonthCalendar({
+  shown,
+  today,
+  entries,
+  selected,
+  onSelect,
+  onShow,
+}: {
+  shown: YearMonth;
+  today: string;
+  entries: DiaryEntry[] | null;
+  selected: string | null;
+  onSelect: (day: string) => void;
+  onShow: (month: YearMonth) => void;
+}) {
+  const t = useTheme();
+  const prev = prevMonth(shown.year, shown.month);
+  const next = nextMonth(shown.year, shown.month);
+  const canGoNext = compareMonths(next, monthOf(today)) <= 0;
+  const marked = daysWithEntries(entries ?? []);
+  const counts = entriesPerDay(entries ?? []);
+  const dot = t.space.sm;
+  return (
+    <View style={{ gap: t.space.xs, alignSelf: 'stretch' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <MonthArrow
+          icon="chevron-back"
+          label={`Previous month, ${monthLabel(prev.year, prev.month)}`}
+          onPress={() => onShow(prev)}
+        />
+        <Text
+          variant="heading"
+          accessibilityRole="header"
+          accessibilityLiveRegion="polite"
+          style={{ flex: 1, textAlign: 'center' }}
+        >
+          {monthLabel(shown.year, shown.month)}
+        </Text>
+        <MonthArrow
+          icon="chevron-forward"
+          label={`Next month, ${monthLabel(next.year, next.month)}`}
+          disabled={!canGoNext}
+          onPress={() => onShow(next)}
+        />
+      </View>
+      {/* Column headers are for sighted users; each day's label already says its weekday. */}
+      <View style={{ flexDirection: 'row' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {WEEKDAY_HEADERS.map((w) => (
+          <Text key={w} variant="caption" muted style={{ flex: 1, textAlign: 'center' }}>
+            {w}
+          </Text>
+        ))}
+      </View>
+      {monthGrid(shown.year, shown.month).map((week, wi) => (
+        <View key={`${monthKey(shown)}-${wi}`} style={{ flexDirection: 'row' }}>
+          {week.map((day, di) => {
+            if (day === null) return <View key={`pad-${di}`} style={{ flex: 1 }} />;
+            const future = day > today;
+            const isSelected = day === selected;
+            const isToday = day === today;
+            const fg = isSelected ? t.colours.onAccent : future ? t.colours.textMuted : t.colours.text;
+            const dotColour = marked.has(day) ? (isSelected ? t.colours.onAccent : t.colours.accent) : 'transparent';
+            return (
+              <Pressable
+                key={day}
+                accessibilityRole="button"
+                accessibilityLabel={entries ? dayCellLabel(day, counts.get(day) ?? 0, today) : shortDate(day)}
+                accessibilityState={{ selected: isSelected, disabled: future }}
+                disabled={future}
+                onPress={() => onSelect(day)}
+                style={({ pressed }) => ({ flex: 1, minHeight: t.touchTarget, opacity: pressed ? 0.85 : 1 })}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    margin: t.space.xxs,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: t.space.xxs,
+                    paddingVertical: t.space.xxs,
+                    borderRadius: t.radius.md,
+                    borderWidth: 2,
+                    borderColor: isToday ? t.colours.accent : 'transparent',
+                    backgroundColor: isSelected ? t.colours.accent : 'transparent',
+                  }}
+                >
+                  <Text variant="label" numberOfLines={1} style={{ color: fg }}>
+                    {Number(day.slice(8))}
+                  </Text>
+                  <View style={{ width: dot, height: dot, borderRadius: t.radius.pill, backgroundColor: dotColour }} />
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
  * Outfit diary tab (M2, #56 slice 2): post today's outfit by tapping the pieces worn (and optionally one of your
- * outfit photos), then see today's entry and the last two weeks. Calendar and wear counts come in slice 3.
+ * outfit photos), then see today's entry and, below it, either the last two weeks or a month calendar (slice 3b).
  */
 export default function Diary() {
   const t = useTheme();
@@ -97,6 +274,13 @@ export default function Diary() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const savingRef = useRef(false);
+  const [view, setView] = useState<DiaryView>('recent');
+  const [shownMonth, setShownMonth] = useState<YearMonth>(() => monthOf(localDateString()));
+  // No day is picked at first: today's outfit is already shown in the Today card above the calendar.
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [month, setMonth] = useState<MonthEntries | null>(null);
+  const [monthFailed, setMonthFailed] = useState(false);
+  const [monthRetry, setMonthRetry] = useState(0);
 
   const load = useCallback(async (isActive: () => boolean = () => true): Promise<Loaded | null> => {
     try {
@@ -125,11 +309,44 @@ export default function Diary() {
     useCallback(() => {
       let active = true;
       load(() => active);
+      // The calendar never shows a month after today's (e.g. the device clock moved back since the last visit).
+      const today = localDateString();
+      const current = monthOf(today);
+      setShownMonth((m) => (compareMonths(m, current) > 0 ? current : m));
+      setSelectedDay((d) => (d && d > today ? null : d));
       return () => {
         active = false;
       };
     }, [load]),
   );
+
+  // The calendar loads the month it shows. It reloads whenever `data` does (tab focus, a saved outfit), so new entries
+  // show up; the dots already shown stay until the new reply arrives.
+  useEffect(() => {
+    if (view !== 'calendar' || !data) return;
+    let active = true;
+    const shown = { year: shownMonth.year, month: shownMonth.month };
+    const { from, to } = monthRange(shown.year, shown.month);
+    listEntriesBetween(from, to).then(
+      (entries) => {
+        if (!active) return;
+        setMonth({ key: monthKey(shown), entries });
+        setMonthFailed(false);
+      },
+      () => {
+        if (active) setMonthFailed(true);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [view, data, shownMonth.year, shownMonth.month, monthRetry]);
+
+  function showMonth(next: YearMonth) {
+    setShownMonth(next);
+    setMonthFailed(false);
+    setSelectedDay(null);
+  }
 
   function startDraft(editing: DiaryEntry | null) {
     setError(null);
@@ -332,6 +549,10 @@ export default function Diary() {
   const days = groupByDay(data.entries);
   const todays = days.find((d) => d.day === data.today)?.entries ?? [];
   const past = days.filter((d) => d.day < data.today);
+  const monthEntries = month && month.key === monthKey(shownMonth) ? month.entries : null;
+  const selectedEntries = selectedDay
+    ? (groupByDay(monthEntries ?? []).find((d) => d.day === selectedDay)?.entries ?? [])
+    : [];
 
   return (
     <Screen scroll>
@@ -362,18 +583,62 @@ export default function Diary() {
           onPress={() => startDraft(null)}
         />
       </Section>
-      {past.length > 0 ? (
-        <>
-          <Text variant="heading">Last {RECENT_DAYS} days</Text>
-          {past.map((d) => (
+      <SegmentedControl options={VIEWS} value={view} onChange={setView} />
+      {view === 'recent' ? (
+        past.length > 0 ? (
+          past.map((d) => (
             <Section key={d.day} title={dayLabel(d.day, data.today)}>
               {d.entries.map((entry) => (
                 <EntryThumbs key={entry.id} entry={entry} data={data} columns={thumbColumns} />
               ))}
             </Section>
-          ))}
+          ))
+        ) : (
+          <Text muted>Outfits you log show up here for {RECENT_DAYS} days.</Text>
+        )
+      ) : (
+        <>
+          <MonthCalendar
+            shown={shownMonth}
+            today={data.today}
+            entries={monthEntries}
+            selected={selectedDay}
+            onSelect={setSelectedDay}
+            onShow={showMonth}
+          />
+          {monthFailed && !monthEntries ? (
+            <View style={{ gap: t.space.sm }}>
+              <Text tone="danger" accessibilityLiveRegion="polite">
+                We couldn’t load this month. Check your connection and try again.
+              </Text>
+              <Button
+                label="Try again"
+                variant="secondary"
+                onPress={() => {
+                  setMonthFailed(false);
+                  setMonthRetry((n) => n + 1);
+                }}
+              />
+            </View>
+          ) : !monthEntries ? (
+            <Text variant="caption" muted accessibilityLiveRegion="polite">
+              Loading {monthLabel(shownMonth.year, shownMonth.month)}…
+            </Text>
+          ) : selectedDay ? (
+            <Section title={dayLabel(selectedDay, data.today)}>
+              {selectedEntries.length === 0 ? (
+                <Text muted>Nothing logged.</Text>
+              ) : (
+                selectedEntries.map((entry) => (
+                  <EntryThumbs key={entry.id} entry={entry} data={data} columns={thumbColumns} />
+                ))
+              )}
+            </Section>
+          ) : (
+            <Text muted>Tap a day to see what you wore.</Text>
+          )}
         </>
-      ) : null}
+      )}
     </Screen>
   );
 }
