@@ -7,7 +7,7 @@ const answers: Record<string, Result[]> = {};
 
 function from(table: string) {
   const chain: Record<string, unknown> = {};
-  for (const method of ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'in', 'gte', 'order', 'limit', 'single']) {
+  for (const method of ['select', 'insert', 'upsert', 'update', 'delete', 'eq', 'in', 'gte', 'lte', 'order', 'limit', 'single']) {
     chain[method] = (...args: unknown[]) => {
       calls.push({ table, method, args });
       return chain;
@@ -29,6 +29,8 @@ const {
   diaryErrorKind,
   groupByDay,
   itemDiff,
+  listEntriesBetween,
+  listEntriesSince,
   localDateString,
   outfitInsert,
   outfitItemRows,
@@ -163,6 +165,43 @@ describe('grouping', () => {
       ['o1', ['a', 'b']],
       ['o2', []],
     ]);
+  });
+});
+
+describe('listEntriesSince / listEntriesBetween', () => {
+  const outfit = { id: 'o1', worn_on: '2026-11-24', photo_id: null, created_at: '2026-11-24T08:00:00Z' };
+
+  it('reads from a day on, with no upper bound', async () => {
+    answers.outfits = [{ data: [outfit], error: null }];
+    answers.outfit_items = [{ data: [{ outfit_id: 'o1', item_id: 'a' }], error: null }];
+    await expect(listEntriesSince('2026-11-13')).resolves.toEqual([{ ...outfit, item_ids: ['a'] }]);
+    expect(calls).toContainEqual({ table: 'outfits', method: 'gte', args: ['worn_on', '2026-11-13'] });
+    expect(calls.some((c) => c.method === 'lte')).toBe(false);
+    expect(calls).toContainEqual({ table: 'outfit_items', method: 'in', args: ['outfit_id', ['o1']] });
+  });
+
+  it('reads a closed range of days, both ends included, newest day first', async () => {
+    answers.outfits = [{ data: [outfit], error: null }];
+    answers.outfit_items = [{ data: [], error: null }];
+    await expect(listEntriesBetween('2026-11-01', '2026-11-30')).resolves.toEqual([{ ...outfit, item_ids: [] }]);
+    const outfitCalls = calls.filter((c) => c.table === 'outfits').map((c) => [c.method, ...c.args]);
+    expect(outfitCalls).toEqual([
+      ['select', 'id, worn_on, photo_id, created_at'],
+      ['gte', 'worn_on', '2026-11-01'],
+      ['lte', 'worn_on', '2026-11-30'],
+      ['order', 'worn_on', { ascending: false }],
+      ['order', 'created_at', { ascending: true }],
+      ['limit', 100],
+    ]);
+  });
+
+  it('skips the links query for an empty month and throws read errors', async () => {
+    answers.outfits = [{ data: [], error: null }];
+    await expect(listEntriesBetween('2026-10-01', '2026-10-31')).resolves.toEqual([]);
+    expect(calls.some((c) => c.table === 'outfit_items')).toBe(false);
+    const readError = { message: 'offline' };
+    answers.outfits = [{ data: null, error: readError }];
+    await expect(listEntriesBetween('2026-10-01', '2026-10-31')).rejects.toBe(readError);
   });
 });
 
