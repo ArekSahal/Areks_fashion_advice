@@ -128,6 +128,43 @@ describe('goesWithFor', () => {
   });
 });
 
+describe('womenswear seeds', () => {
+  const navyCardigan = row({ id: 'card', subcategory: 'cardigan', colours: ['navy'], materials: ['wool'], formality: 3 });
+  const blackDress = row({ id: 'dress', subcategory: 'dress', colours: ['black'], materials: ['viscose'], formality: 3 });
+  const nudeHeels = row({ id: 'heels', subcategory: 'heels', colours: ['beige'], materials: ['leather'], formality: 4 });
+  const greySkirt = row({ id: 'skirt', subcategory: 'skirt', colours: ['grey'], materials: ['wool'], formality: 3 });
+  const whiteShirt = row({ subcategory: 'shirt', colours: ['white'], materials: ['cotton'], formality: 3 });
+  const blackBag = row({ subcategory: 'bag', colours: ['black'], materials: ['leather'], formality: 3 });
+  const wardrobe = [navyCardigan, blackDress, nudeHeels, greySkirt, whiteShirt, blackBag, greyTrousers, brownLoafers, camelCoat];
+  const cats = (id: string) => {
+    const r = goesWithFor(id, wardrobe);
+    if (r.kind !== 'ok') throw new Error(r.kind);
+    return r.groups.map((g) => g.category);
+  };
+
+  it('shows dresses for a cardigan seed (not cut by maxGroups)', () => {
+    expect(cats('card')).toContain('one_piece');
+  });
+
+  it('a coat seed treats dresses as a lower half', () => {
+    const r = goesWithFor(camelCoat.id, wardrobe);
+    if (r.kind !== 'ok') throw new Error(r.kind);
+    expect(r.groups.map((g) => g.category)).toContain('one_piece');
+  });
+
+  it('a dress seed gets shoes and outerwear first', () => {
+    expect(cats('dress').slice(0, 2).sort()).toEqual(['footwear', 'outerwear']);
+  });
+
+  it('a skirt seed gets tops and shoes first', () => {
+    expect(cats('skirt').slice(0, 2).sort()).toEqual(['footwear', 'top']);
+  });
+
+  it('a heels seed gets a lower half first', () => {
+    expect(['bottom', 'one_piece']).toContain(cats('heels')[0]);
+  });
+});
+
 describe('GROUP_TITLES', () => {
   it('has an English title for every category', () => {
     for (const cat of Object.keys(CATEGORIES)) expect(GROUP_TITLES[cat as keyof typeof CATEGORIES]).toMatch(/^[A-Z]/);

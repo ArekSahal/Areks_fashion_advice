@@ -15,6 +15,7 @@ import {
   PATTERNS,
   SEASONS,
   categoryOf,
+  layerOf,
   type Category,
   type Colour,
   type Formality,
@@ -52,14 +53,14 @@ const known = <T extends string>(values: readonly string[] | null, allowed: (v: 
 export function toMatchItem(row: GoesWithRow): MatchItem | null {
   if (!row.subcategory || !SUBCATEGORIES.has(row.subcategory)) return null;
   const pattern = row.pattern && (PATTERNS as readonly string[]).includes(row.pattern) ? (row.pattern as Pattern) : null;
-  const formality = row.formality !== null && row.formality in FORMALITY ? (row.formality as Formality) : null;
+  const formality = row.formality !== null && Object.hasOwn(FORMALITY, row.formality) ? (row.formality as Formality) : null;
   const status = row.status && STATUSES.has(row.status) ? (row.status as MatchItem['status']) : null;
   return {
     id: row.id,
     subcategory: row.subcategory as Subcategory,
-    colours: known<Colour>(row.colours, (c) => c in COLOURS),
+    colours: known<Colour>(row.colours, (c) => Object.hasOwn(COLOURS, c)),
     pattern,
-    materials: known<Material>(row.materials, (m) => m in MATERIALS),
+    materials: known<Material>(row.materials, (m) => Object.hasOwn(MATERIALS, m)),
     formality,
     seasons: known<Season>(row.seasons, (s) => (SEASONS as readonly string[]).includes(s)),
     status,
@@ -92,6 +93,17 @@ export type GoesWithOptions = Pick<RankOptions, 'season' | 'includeUnconfirmed' 
   maxGroups?: number;
 };
 
+/**
+ * How much a seed needs a category to become an outfit, for ordering groups only (scores are untouched). Starts from
+ * the engine's slot bonus, but treats a dress as the "lower half" a knit, cardigan or coat completes: without this,
+ * dresses ranked last for those seeds and were cut by maxGroups (a staple womenswear pairing).
+ */
+export function groupNeed(seed: Subcategory, cat: Category): number {
+  const base = slotBonus(seed, CATEGORIES[cat][0]);
+  if (cat === 'one_piece' && (categoryOf(seed) === 'outerwear' || layerOf(seed) === 'mid')) return Math.max(base, 1);
+  return base;
+}
+
 /** Ranked, grouped matches for one item against the rest of the user's wardrobe. */
 export function goesWithFor(seedId: string, rows: readonly GoesWithRow[], opts: GoesWithOptions = {}): GoesWithResult {
   const { perCategory = 3, maxGroups = 4, ...rank } = opts;
@@ -111,7 +123,7 @@ export function goesWithFor(seedId: string, rows: readonly GoesWithRow[], opts: 
     if (list.length < perCategory) list.push(m);
     byCategory.set(cat, list);
   }
-  const need = (cat: Category) => slotBonus(seed.subcategory, CATEGORIES[cat][0]);
+  const need = (cat: Category) => groupNeed(seed.subcategory, cat);
   const groups = [...byCategory.entries()]
     .map(([category, matches]) => ({ category, matches }))
     .sort((a, b) => need(b.category) - need(a.category) || b.matches[0]!.score - a.matches[0]!.score)
@@ -130,7 +142,7 @@ export const GROUP_TITLES: Record<Category, string> = {
   top: 'Tops',
   bottom: 'Bottoms',
   one_piece: 'Dresses & jumpsuits',
-  outerwear: 'Layers',
+  outerwear: 'Coats & jackets',
   footwear: 'Shoes',
   accessory: 'Accessories',
 };
